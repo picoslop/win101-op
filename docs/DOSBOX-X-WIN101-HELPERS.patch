@@ -1,0 +1,2051 @@
+diff --git a/README.md b/README.md
+index 3864ae432..fe278347b 100644
+--- a/README.md
++++ b/README.md
+@@ -1,3 +1,38 @@
++# DOSBox-X — win1-op debug fork
++
++This is a debug fork of DOSBox-X for the win1-op project,
++based on upstream DOSBox-X `66480b4a84c9adc8002f21b332da8f694a9978c4`.
++It is not required to run win1-op; it adds the control and tracing tools used
++while reverse-engineering and testing Windows 1.01.
++
++The changes are on `master` (and the equivalent `win1-op-debug` branch).
++
++## Added in this fork
++
++- **MCP control channel** — a raw POSIX socket owned by the emulation thread,
++  with `PING`, `BREAK`, `EXEC`, `BP`, `BPINT`, `BPM` and headless events.
++- **`LOGSEGLOAD seg:off`** — log every Windows `SEGLOAD` call/return, with the
++  module name, to `SEGLOAD.TXT` without stopping the CPU.
++- **`LOGB [n]`** — binary per-instruction delta trace to `LOGCPU.BIN`
++  (CS:IP, changed-register mask, changed values) for long drawing traces.
++- **`MOUSEMOVE dx dy` / `MOUSEBUTTON 1|0`** — inject relative serial-mouse
++  movement and button state while tracing.
++- **Memory / NE inspection** — `MEMDUMPASC`, `MEMCMP`, `MEMFINDSTR`,
++  `MEMFINDHEX`, `NEDUMP` and `WINSCAN`.
++- **`SAVESTATE` / `LOADSTATE`** — full emulator state save and restore.
++- **Richer illegal-interrupt diagnostics** — print the faulting `CS:IP` and
++  `SS:SP`.
++- **Monitor guards** — fail a TCP listen cleanly instead of leaving a null
++  `_server`, and guard a null listener thread.
++
++See [WIN1-OP-DEBUG.md](WIN1-OP-DEBUG.md) for the commands and build flags.
++
++## Original DOSBox-X README
++
++The upstream README follows unchanged below.
++
++---
++
+ 
+ **Welcome to the DOSBox-X project homepage located on GitHub.**
+ 
+diff --git a/WIN1-OP-DEBUG.md b/WIN1-OP-DEBUG.md
+new file mode 100644
+index 000000000..681a84484
+--- /dev/null
++++ b/WIN1-OP-DEBUG.md
+@@ -0,0 +1,51 @@
++# win1-op debug harness
++
++This fork adds the DeepSeek Harness / win1-op debugging features to
++DOSBox-X at upstream `66480b4a8` (2026-10-29). It is a test/debug fork, not a
++runtime dependency of the win1-op release. The changes are merged to
++`master`; the `win1-op-debug` branch points at the same commit.
++
++## What was added
++
++| feature | purpose |
++|---|---|
++| MCP control channel | raw POSIX socket owned by the emulation thread; `PING`, `BREAK`, `EXEC`, `BP`, `BPINT`, `BPM`, headless events |
++| `DEBUG_MCP_*` break/headless entry points | stop/continue without an attached SDL window |
++| `LOGSEGLOAD seg:off` | log every Windows `SEGLOAD` call/return with the module name to `SEGLOAD.TXT`, without stopping the CPU |
++| `LOGB [n]` | binary per-instruction delta trace to `LOGCPU.BIN` (CS:IP, changed-register mask, changed values) |
++| `MOUSEMOVE dx dy` | inject relative serial-mouse movement while tracing |
++| `MOUSEBUTTON 1\|0` | inject left button down/up while tracing |
++| memory/NEDUMP commands | `MEMDUMPASC`, `MEMCMP`, `MEMFINDSTR`, `MEMFINDHEX`, `NEDUMP`, `WINSCAN` |
++| `SAVESTATE` / `LOADSTATE` | full emulator state save/restore |
++| richer illegal-interrupt log | print the faulting `CS:IP` and `SS:SP` |
++| monitor null-server guard | return failure when the TCP listen fails instead of leaving a null `_server`; guard a null listener thread |
++
++The monitor's empty/`off` handling was already improved upstream; this branch
++keeps that version and only adds the null-`_server`/null-thread guard.
++
++## Build
++
++```sh
++./autogen.sh
++(cd vs/sdl && ./build-dosbox.sh)
++(cd vs/sdlnet && ./build-dosbox.sh)
++CFLAGS='-g3 -O0 -fno-inline -fno-omit-frame-pointer' \
++CXXFLAGS='-g3 -O0 -fno-inline -fno-omit-frame-pointer' \
++./configure --enable-debug=heavy --disable-dynamic-core --disable-optimize \
++    --prefix=/usr
++make -j48
++```
++
++The binary is `src/dosbox-x`. `C_DEBUG` and `C_HEAVY_DEBUG` are enabled.
++
++## Notes
++
++* `LOGB` is the compact trace format used by win1-op for long drawing traces;
++  `work/decode_logb.py` in the parent workspace decodes it.
++* `LOGSEGLOAD` output is parsed by `work/parse_loadmap.py` to get runtime
++  segment bases.
++* MCP is a raw POSIX socket; the fork exists because the upstream TCP monitor
++  and the SDLNet-based control path were not reliable enough for repeated
++  attach/detach during tracing.
++* This branch is GPL-2.0-or-later, like DOSBox-X. The win1-op release's MIT
++  license does not apply to it.
+diff --git a/include/debug.h b/include/debug.h
+index f4ee552bb..debde63d3 100644
+--- a/include/debug.h
++++ b/include/debug.h
+@@ -77,3 +77,8 @@ extern Bitu debugCallback;
+ bool DEBUG_HeavyIsBreakpoint(void);
+ void DEBUG_HeavyWriteLogInstruction(void);
+ #endif
++
++bool DEBUG_MCP_TakeBreak(void);
++void DEBUG_MCP_RequestBreak(void);
++bool DEBUG_MCP_IsStopped(void);
++void DEBUG_MCP_HeadlessEnter(void);
+diff --git a/include/mouse.h b/include/mouse.h
+index feb0f5161..905aca544 100644
+--- a/include/mouse.h
++++ b/include/mouse.h
+@@ -36,6 +36,7 @@ void Mouse_ChangePS2Callback(uint16_t pseg, uint16_t pofs);
+ 
+ 
+ void Mouse_CursorMoved(float xrel,float yrel,float x,float y,bool emulate);
++void Mouse_InjectRelative(int dx,int dy);
+ const char* Mouse_GetSelected(int x1, int y1, int x2, int y2, int w, int h, uint16_t *textlen);
+ #if defined(WIN32) || defined(MACOSX) || defined(C_SDL2)
+ void Mouse_Select(int x1, int y1, int x2, int y2, int w, int h, bool select);
+diff --git a/src/cpu/callback.cpp b/src/cpu/callback.cpp
+index 4d1fc7f34..f84a0d445 100644
+--- a/src/cpu/callback.cpp
++++ b/src/cpu/callback.cpp
+@@ -159,7 +159,8 @@ void CALLBACK_IdleNoInts(void) {
+ }
+ 
+ static Bitu default_handler(void) {
+-	LOG(LOG_CPU,LOG_ERROR)("Illegal Unhandled Interrupt Called %X",lastint);
++	LOG(LOG_CPU,LOG_ERROR)("Illegal Unhandled Interrupt Called %X at %04X:%08X SS:SP=%04X:%04X",lastint,
++		(unsigned)SegValue(cs),(unsigned)reg_eip,(unsigned)SegValue(ss),(unsigned)reg_sp);
+ 	return CBRET_NONE;
+ }
+ 
+diff --git a/src/debug/debug.cpp b/src/debug/debug.cpp
+index 36c909c5b..3d1a0c3bd 100644
+--- a/src/debug/debug.cpp
++++ b/src/debug/debug.cpp
+@@ -61,6 +61,10 @@ using namespace std;
+ #include "debug_inc.h"
+ #include "../cpu/lazyflags.h"
+ #include "control.h"
++#include "mouse.h"
++
++extern bool use_save_file, noremark_save_state, force_load_state;
++extern std::string savefilename;
+ 
+ #include "debug_mcp.h"
+ 
+@@ -329,6 +333,79 @@ class DEBUG;
+ 
+ //DEBUG*	pDebugcom	= 0;
+ bool	exitLoop	= false;
++static std::atomic<bool> debug_mcp_break_request{false};
++void DEBUG_MCP_RequestBreak(void) { debug_mcp_break_request.store(true); }
++bool DEBUG_MCP_TakeBreak(void) { return debug_mcp_break_request.exchange(false); }
++
++/* ---- in-emulator segment-load trace (LOGSEGLOAD) ----
++ * The Windows loader calls KERNEL's SEGLOAD() for every code/data
++ * segment.  Logging from inside the emulation loop (rather than
++ * stopping for every event) keeps the timing intact; the resulting
++ * SEGLOAD.TXT is parsed later at a convenient breakpoint. */
++static bool seglog_active = false;
++static uint16_t seglog_seg = 0;
++static uint32_t seglog_off = 0;
++static bool seglog_ret_pending = false;
++static uint16_t seglog_ret_seg = 0;
++static uint32_t seglog_ret_off = 0;
++static FILE *seglog_fp = nullptr;
++
++static void DBG_SegLogClose(void) {
++	if (seglog_fp) { fflush(seglog_fp); fclose(seglog_fp); seglog_fp = nullptr; }
++	seglog_active = false;
++	seglog_ret_pending = false;
++}
++
++static void DBG_SegLogCheck(void) {
++	if (!seglog_active) return;
++	const uint16_t curcs = SegValue(cs);
++	const uint32_t ip = reg_eip;
++	if (seglog_ret_pending && curcs == seglog_ret_seg && ip == seglog_ret_off) {
++		fprintf(seglog_fp, "R %04X:%04X AX=%04X BX=%04X CX=%04X DX=%04X\n",
++			curcs, ip, reg_ax, reg_bx, reg_cx, reg_dx);
++		fflush(seglog_fp);
++		seglog_ret_pending = false;
++		return;
++	}
++	if (curcs == seglog_seg && ip == seglog_off) {
++		const uint16_t curss = SegValue(ss);
++		const uint32_t sp = reg_sp;
++		PhysPt p = (PhysPt)(((uint32_t)curss << 4) + sp);
++		uint16_t ret=0,p1=0,p2=0,p3=0,p4o=0,p4s=0;
++		mem_readw_checked((LinearPt)p, &ret);
++		mem_readw_checked((LinearPt)(p+2), &p1);
++		mem_readw_checked((LinearPt)(p+4), &p2);
++		mem_readw_checked((LinearPt)(p+6), &p3);
++		mem_readw_checked((LinearPt)(p+8), &p4o);
++		mem_readw_checked((LinearPt)(p+10), &p4s);
++		char nm[65]; int nl=0;
++		if (p4s) {
++			PhysPt hp=(PhysPt)((uint32_t)p4s << 4);
++			uint8_t s0=0,s1=0;
++			if (!mem_readb_checked((LinearPt)hp,&s0) &&
++			    !mem_readb_checked((LinearPt)(hp+1),&s1) && s0=='N' && s1=='E') {
++				uint16_t rn=0;
++				mem_readw_checked((LinearPt)(hp+0x26),&rn);
++				uint8_t len=0;
++				if (rn && !mem_readb_checked((LinearPt)(hp+rn),&len) &&
++				    len>0 && len<=64) {
++					for (unsigned i=0;i<len;i++) {
++						uint8_t c=0;
++						if (mem_readb_checked((LinearPt)(hp+rn+1+i),&c)) { nl=0; break; }
++						nm[nl++] = (c>=0x20 && c<0x7F) ? (char)c : '?';
++					}
++				}
++			}
++		}
++		nm[nl]=0;
++		fprintf(seglog_fp, "E %04X:%04X SP=%04X ret=%04X p1=%04X p2=%04X p3=%04X p4=%04X:%04X name=%s\n",
++			curcs, ip, sp, ret, p1, p2, p3, p4s, p4o, nm);
++		fflush(seglog_fp);
++		seglog_ret_seg = curcs;
++		seglog_ret_off = ret;
++		seglog_ret_pending = true;
++	}
++}
+ 
+ 
+ // Heavy Debugging Vars for logging
+@@ -336,9 +413,110 @@ bool	exitLoop	= false;
+ static ofstream 	cpuLogFile;
+ static bool		cpuLog			= false;
+ static int		cpuLogCounter	= 0;
+-static int		cpuLogType		= 1;	// log detail
++static int		cpuLogType		= 1;	// log detail (4 = binary delta)
+ static bool zeroProtect = false;
+ bool	logHeavy	= false;
++
++/* Binary CPU trace ("LOGB").  One little-endian file header followed by
++ * variable-length records.  Each record carries CS:IP plus only the
++ * registers (and EFLAGS) whose values differ from the previous record.
++ *
++ * File header (16 bytes):
++ *   0  8  magic "DBXTRC1\0"
++ *   8  2  version (1)
++ *  10  2  file header size (16)
++ *  12  2  per-instruction header size (8)
++ *  14  2  flags (reserved, 0)
++ *
++ * Per instruction record:
++ *   0  2  CS
++ *   2  4  EIP
++ *   6  2  changed mask
++ *   8  4*N changed register values, ascending mask bit
++ *
++ * Mask bits: 0 EAX, 1 EBX, 2 ECX, 3 EDX, 4 ESI, 5 EDI, 6 EBP,
++ * 7 ESP, 8 DS, 9 ES, 10 FS, 11 GS, 12 SS, 13 EFLAGS; bit 14 reserved;
++ * bit 15 = changed-memory extension present.  CS:IP are always present.
++ * The first record has bits 0-13 set so a decoder gets an initial state.
++ *
++ * The low 14 mask bits determine N, so the fixed part of the record is
++ * inferred as 8 + 4*popcount(mask & 0x3FFF).  When bit 15 is set, the
++ * memory extension follows; it is self-sizing as well.
++ *
++ * Reserved changed-memory extension (after the register values, bit 15):
++ *   0  2  run count
++ *   2  ... runs, each:
++ *         0  2  segment
++ *         2  4  offset
++ *         6  2  byte count (number of changed bytes in this contiguous row)
++ *         8  ... byte count data bytes, no padding
++ *
++ * A run's byte count is explicit so a contiguous write of any length is
++ * represented without a fixed data slot.  Runs carry only changed bytes;
++ * no trailing alignment is inserted.
++ */
++static bool binLogHavePrev = false;
++static uint32_t binLogPrev[14];
++#define BINLOG_REG_MASK  0x3FFFu  // bits 0-13: registers and EFLAGS
++#define BINLOG_MEM_MASK  0x8000u  // bit 15: changed-memory extension
++
++static void WriteLE16(std::ofstream& out, uint16_t v) {
++	char b[2] = { (char)(v & 0xFF), (char)((v >> 8) & 0xFF) };
++	out.write(b, sizeof(b));
++}
++
++static void WriteLE32(std::ofstream& out, uint32_t v) {
++	char b[4] = { (char)(v & 0xFF), (char)((v >> 8) & 0xFF),
++		(char)((v >> 16) & 0xFF), (char)((v >> 24) & 0xFF) };
++	out.write(b, sizeof(b));
++}
++
++static void ResetBinaryCpuLog(void) {
++	binLogHavePrev = false;
++	memset(binLogPrev, 0, sizeof(binLogPrev));
++}
++
++static void WriteBinaryCpuLogHeader(std::ofstream& out) {
++	static const char magic[8] = { 'D','B','X','T','R','C','1','\0' };
++	out.write(magic, sizeof(magic));
++	WriteLE16(out, 1);   // format version
++	WriteLE16(out, 16);  // file header bytes
++	WriteLE16(out, 8);   // per-instruction header bytes
++	WriteLE16(out, 0);   // flags: reserved
++}
++
++static const char *CpuLogFileName(void) {
++	return cpuLogType == 4 ? "LOGCPU.BIN" : "LOGCPU.TXT";
++}
++
++static void WriteBinaryCpuLog(uint16_t segValue, uint32_t eipValue, std::ofstream& out) {
++	uint32_t cur[14] = {
++		reg_eax, reg_ebx, reg_ecx, reg_edx, reg_esi, reg_edi, reg_ebp, reg_esp,
++		(uint32_t)SegValue(ds), (uint32_t)SegValue(es),
++		(uint32_t)SegValue(fs), (uint32_t)SegValue(gs),
++		(uint32_t)SegValue(ss), (uint32_t)reg_flags
++	};
++	uint16_t mask = 0;
++	if (!binLogHavePrev) {
++		mask = BINLOG_REG_MASK;  // initial state
++	} else {
++		for (unsigned i = 0; i < 14; i++) {
++			if (cur[i] != binLogPrev[i]) mask |= (uint16_t)(1u << i);
++		}
++	}
++
++	// Bits 0-13 are register/flag changes; bit 15 is reserved for a
++	// changed-memory extension.  The low-bit count makes the fixed part
++	// of this record self-sizing.  No memory extension is emitted yet.
++	WriteLE16(out, segValue);
++	WriteLE32(out, eipValue);
++	WriteLE16(out, mask);
++	for (unsigned i = 0; i < 14; i++) {
++		if (mask & (uint16_t)(1u << i)) WriteLE32(out, cur[i]);
++		binLogPrev[i] = cur[i];
++	}
++	binLogHavePrev = true;
++}
+ #endif
+ 
+ 
+@@ -355,6 +533,8 @@ DBGBlock dbg;
+ extern Bitu cycle_count;
+ static bool debugging = false;
+ static bool debug_running = false;
++bool DEBUG_MCP_IsStopped(void) { return debugging && !debug_running; }
++void DEBUG_MCP_HeadlessEnter(void) { debugging=true; debug_running=false; runnormal=false; }
+ static bool check_rescroll = false;
+ #if defined(C_DOSBOX_AGENT)
+ static std::atomic<uint64_t> agent_entry_breakpoint_sequence(0);
+@@ -2193,6 +2373,210 @@ static bool ParseMemoryDumpArguments(char *&found, uint16_t &seg, uint32_t &ofs,
+ 	return true;
+ }
+ 
++
++/* ---- Windows 1.01 / NE helpers added for this RE workspace ---- */
++static bool DBG_ReadB(PhysPt a, uint8_t &v) { return !mem_readb_checked(a, &v); }
++static bool DBG_ReadW(PhysPt a, uint16_t &v) { return !mem_readw_checked((LinearPt)a, &v); }
++static bool DBG_ReadD(PhysPt a, uint32_t &v) { return !mem_readd_checked((LinearPt)a, &v); }
++
++static bool DBG_ReadNEString(PhysPt addr, uint32_t maxlen, std::string &out) {
++	out.clear();
++	uint8_t len = 0;
++	if (!DBG_ReadB(addr, len)) return false;
++	if (len == 0 || len > 64 || len > maxlen) return false;
++	for (unsigned i = 0; i < len; ++i) {
++		uint8_t c = 0;
++		if (!DBG_ReadB(addr + 1 + i, c)) return false;
++		out.push_back((char)c);
++	}
++	return true;
++}
++
++static void DBG_MemDumpAscii(uint16_t seg, uint32_t ofs, uint32_t num) {
++	if (num == 0) { DEBUG_ShowMsg("DEBUG: MEMDUMPASC length is zero\n"); return; }
++	if (num > 0x2000) num = 0x2000;
++	PhysPt addr = (PhysPt)GetAddress(seg, ofs);
++	for (uint32_t done = 0; done < num; done += 16) {
++		uint32_t row = (num - done < 16) ? (num - done) : 16;
++		std::ostringstream line;
++		line << std::uppercase << std::hex << std::setfill('0')
++		     << std::setw(4) << seg << ':' << std::setw(4) << (ofs + done) << "  ";
++		char ascii[17];
++		for (uint32_t i = 0; i < 16; ++i) {
++			if (i < row) {
++				uint8_t v = 0;
++				if (!DBG_ReadB(addr + done + i, v)) {
++					line << "?? ";
++					ascii[i] = '?';
++				} else {
++					line << std::setw(2) << (unsigned)v << ' ';
++					ascii[i] = (v >= 0x20 && v < 0x7F) ? (char)v : '.';
++				}
++			} else {
++				line << "   ";
++				ascii[i] = ' ';
++			}
++		}
++		ascii[16] = 0;
++		line << " |" << ascii << '|';
++		DEBUG_ShowMsg("%s\n", line.str().c_str());
++	}
++}
++
++static bool DBG_ParseTwoRanges(char *found, uint16_t &s1, uint32_t &o1,
++		uint16_t &s2, uint32_t &o2, uint32_t &len) {
++	unsigned a=0,b=0,c=0,d=0,e=0;
++	int used=0;
++	if (sscanf(found, "%x:%x %x:%x %x%n", &a,&b,&c,&d,&e,&used) != 5) return false;
++	if (a > 0xFFFF || c > 0xFFFF || e == 0 || e > 0x100000) return false;
++	s1=(uint16_t)a; o1=b; s2=(uint16_t)c; o2=d; len=e;
++	return true;
++}
++
++static void DBG_MemCmp(uint16_t s1, uint32_t o1, uint16_t s2, uint32_t o2, uint32_t len) {
++	PhysPt a=(PhysPt)GetAddress(s1,o1), b=(PhysPt)GetAddress(s2,o2);
++	uint32_t diffs=0, first=0xFFFFFFFF;
++	for (uint32_t i=0;i<len;i++) {
++		uint8_t x=0,y=0;
++		if (!DBG_ReadB(a+i,x) || !DBG_ReadB(b+i,y)) {
++			DEBUG_ShowMsg("DEBUG: MEMCMP cannot read at +%04X\n", i); return;
++		}
++		if (x != y) {
++			if (first == 0xFFFFFFFF) first=i;
++			if (diffs < 32)
++				DEBUG_ShowMsg("DEBUG: MEMCMP +%04X  %02X:%04X=%02X  %02X:%04X=%02X\n",
++					i, s1, (uint16_t)(o1+i), x, s2, (uint16_t)(o2+i), y);
++			diffs++;
++		}
++	}
++	if (diffs == 0) DEBUG_ShowMsg("DEBUG: MEMCMP identical (%04X bytes)\n", (unsigned)len);
++	else DEBUG_ShowMsg("DEBUG: MEMCMP %04X differences, first at +%04X\n", (unsigned)diffs, first);
++}
++
++static void DBG_MemFindStr(uint16_t seg, uint32_t ofs, uint32_t len, const char *needle) {
++	std::string pat(needle ? needle : "");
++	if (pat.empty()) { DEBUG_ShowMsg("DEBUG: MEMFINDSTR needs a string\n"); return; }
++	if (pat.size() > len) { DEBUG_ShowMsg("DEBUG: MEMFINDSTR string longer than range\n"); return; }
++	PhysPt a=(PhysPt)GetAddress(seg,ofs);
++	unsigned hits=0;
++	for (uint32_t i=0;i+pat.size()<=len;i++) {
++		bool ok=true;
++		for (size_t j=0;j<pat.size();j++) {
++			uint8_t v=0;
++			if (!DBG_ReadB(a+i+j,v)) { ok=false; break; }
++			char c=(char)v;
++			if (toupper((unsigned char)c) != toupper((unsigned char)pat[j])) { ok=false; break; }
++		}
++		if (ok) {
++			if (hits < 32) DEBUG_ShowMsg("DEBUG: MEMFINDSTR %04X:%04X\n", seg, (uint16_t)(ofs+i));
++			hits++;
++		}
++	}
++	DEBUG_ShowMsg("DEBUG: MEMFINDSTR %u hit(s) for '%s'\n", hits, pat.c_str());
++}
++
++static bool DBG_CheckNEHeader(PhysPt ne, std::string &name,
++		uint16_t &cseg, uint16_t &segtab, uint16_t &shift) {
++	uint8_t sig[2];
++	if (!DBG_ReadB(ne,sig[0]) || !DBG_ReadB(ne+1,sig[1])) return false;
++	if (sig[0]!='N' || sig[1]!='E') return false;
++	uint16_t rn=0;
++	if (!DBG_ReadW(ne+0x26,rn)) return false;
++	if (!DBG_ReadW(ne+0x1C,cseg)) return false;
++	if (!DBG_ReadW(ne+0x22,segtab)) return false;
++	if (!DBG_ReadW(ne+0x32,shift)) return false;
++	/* Reject chance "NE" byte pairs in code/data. */
++	if (cseg == 0 || cseg > 64 || segtab >= 0x8000 || shift > 16) return false;
++	if (rn && !DBG_ReadNEString(ne+rn, 512, name)) name.clear();
++	return true;
++}
++
++static void DBG_MemFindHex(uint16_t seg, uint32_t ofs, uint32_t len, const std::vector<uint8_t> &pat) {
++	if (pat.empty()) { DEBUG_ShowMsg("DEBUG: MEMFINDHEX needs a byte pattern\n"); return; }
++	if (pat.size() > len) { DEBUG_ShowMsg("DEBUG: MEMFINDHEX pattern longer than range\n"); return; }
++	PhysPt a=(PhysPt)GetAddress(seg,ofs);
++	unsigned hits=0;
++	for (uint32_t i=0;i+pat.size()<=len;i++) {
++		bool ok=true;
++		for (size_t j=0;j<pat.size();j++) {
++			uint8_t v=0;
++			if (!DBG_ReadB(a+i+j,v) || v!=pat[j]) { ok=false; break; }
++		}
++		if (ok) {
++			if (hits < 64)
++				DEBUG_ShowMsg("DEBUG: MEMFINDHEX %04X:%04X\n", seg, (uint16_t)(ofs+i));
++			hits++;
++		}
++	}
++	DEBUG_ShowMsg("DEBUG: MEMFINDHEX %u hit(s), pattern length %u\n", hits, (unsigned)pat.size());
++}
++
++static bool DBG_ReadNEHeader(PhysPt base, PhysPt &ne, std::string &name,
++		uint16_t &cseg, uint16_t &segtab, uint16_t &shift) {
++	uint8_t mz[2];
++	if (!DBG_ReadB(base,mz[0]) || !DBG_ReadB(base+1,mz[1])) return false;
++	if (mz[0]=='M' && mz[1]=='Z') {
++		uint32_t lfanew=0;
++		if (!DBG_ReadD(base+0x3C,lfanew) || lfanew > 0x10000) return false;
++		ne = base + lfanew;
++	} else if (mz[0]=='N' && mz[1]=='E') {
++		ne = base;
++	} else return false;
++	return DBG_CheckNEHeader(ne,name,cseg,segtab,shift);
++}
++
++static void DBG_NEDump(uint16_t seg, uint32_t ofs) {
++	PhysPt base=(PhysPt)GetAddress(seg,ofs);
++	PhysPt ne=0; std::string name; uint16_t cseg=0,segtab=0,shift=0;
++	if (!DBG_ReadNEHeader(base,ne,name,cseg,segtab,shift)) {
++		DEBUG_ShowMsg("DEBUG: NEDUMP no MZ/NE at %04X:%04X\n",seg,(uint16_t)ofs);
++		return;
++	}
++	uint32_t neoff=(uint32_t)(ne-base);
++	DEBUG_ShowMsg("DEBUG: NEDUMP %04X:%04X NE=+%04X name=%s segments=%u shift=%u\n",
++		seg,(uint16_t)ofs,neoff,name.empty()?"?":name.c_str(),(unsigned)cseg,(unsigned)shift);
++	uint16_t maxseg = cseg > 64 ? 64 : cseg;
++	for (uint16_t i=0;i<maxseg;i++) {
++		PhysPt ent=ne+segtab+(uint32_t)i*8;
++		uint16_t foff=0, slen=0, flags=0, minalloc=0;
++		if (!DBG_ReadW(ent,foff)||!DBG_ReadW(ent+2,slen)||
++		    !DBG_ReadW(ent+4,flags)||!DBG_ReadW(ent+6,minalloc)) break;
++		DEBUG_ShowMsg("DEBUG:   seg %02u file=%04X len=%04X flags=%04X min=%04X\n",
++			(unsigned)(i+1),(unsigned)foff,(unsigned)slen,(unsigned)flags,(unsigned)minalloc);
++	}
++}
++
++static void DBG_WINScan(void) {
++	unsigned found=0;
++	for (uint32_t para=0; para<0xA000; ++para) {
++		PhysPt base=(PhysPt)(para<<4);
++		uint8_t mz[2];
++		if (!DBG_ReadB(base,mz[0])||!DBG_ReadB(base+1,mz[1])) continue;
++		const bool is_mz = (mz[0]=='M' && mz[1]=='Z');
++		const bool is_ne = (mz[0]=='N' && mz[1]=='E');
++		if (!is_mz && !is_ne) continue;
++		PhysPt ne=0; std::string name; uint16_t cseg=0,segtab=0,shift=0;
++		if (is_mz && DBG_ReadNEHeader(base,ne,name,cseg,segtab,shift)) {
++			uint32_t neoff=(uint32_t)(ne-base);
++			DEBUG_ShowMsg("DEBUG: WINSCAN MZ=%04X:0000 NE=%04X:%04X name=%s segs=%u\n",
++				(unsigned)para,(unsigned)para,(unsigned)neoff,name.empty()?"?":name.c_str(),(unsigned)cseg);
++			found++;
++			continue;
++		}
++		/* Windows 1.01 keeps the module header as a bare NE structure at
++		 * a segment base (the MZ stub is gone); the loader-linked list
++		 * also uses offset 6 as the next header segment. */
++		if (is_ne && DBG_CheckNEHeader(base,name,cseg,segtab,shift)) {
++			uint16_t next=0;
++			DBG_ReadW(base+6,next);
++			DEBUG_ShowMsg("DEBUG: WINSCAN NE=%04X:0000 name=%s segs=%u next=%04X\n",
++				(unsigned)para,name.empty()?"?":name.c_str(),(unsigned)cseg,(unsigned)next);
++			found++;
++		}
++	}
++	DEBUG_ShowMsg("DEBUG: WINSCAN %u MZ/NE module(s)\n",found);
++}
++
+ bool ParseCommand(char* str) {
+     std::string copy_str = str;
+     for (auto &c : copy_str) c = toupper(c);
+@@ -2271,6 +2655,58 @@ bool ParseCommand(char* str) {
+         }
+     }
+ 
++	if (command == "SAVESTATE") { // Save full emulator state to a file
++		std::string path(found);
++		while (!path.empty() && isspace((unsigned char)path.front())) path.erase(0,1);
++		while (!path.empty() && isspace((unsigned char)path.back())) path.pop_back();
++		if (path.empty()) {
++			DEBUG_ShowMsg("DEBUG: SAVESTATE usage: SAVESTATE <file>\n");
++			return true;
++		}
++		bool old_use = use_save_file;
++		bool old_remark = noremark_save_state;
++		std::string old_name = savefilename;
++		use_save_file = true;
++		savefilename = path;
++		noremark_save_state = true;
++		try {
++			SaveState::instance().save(0);
++			DEBUG_ShowMsg("DEBUG: SAVESTATE wrote %s\n", savefilename.c_str());
++		} catch (const SaveState::Error &err) {
++			DEBUG_ShowMsg("DEBUG: SAVESTATE failed: %s\n", err.c_str());
++		}
++		use_save_file = old_use;
++		savefilename = old_name;
++		noremark_save_state = old_remark;
++		return true;
++	}
++
++	if (command == "LOADSTATE") { // Load full emulator state from a file
++		std::string path(found);
++		while (!path.empty() && isspace((unsigned char)path.front())) path.erase(0,1);
++		while (!path.empty() && isspace((unsigned char)path.back())) path.pop_back();
++		if (path.empty()) {
++			DEBUG_ShowMsg("DEBUG: LOADSTATE usage: LOADSTATE <file>\n");
++			return true;
++		}
++		bool old_use = use_save_file;
++		bool old_force = force_load_state;
++		std::string old_name = savefilename;
++		use_save_file = true;
++		savefilename = path;
++		force_load_state = true;
++		try {
++			SaveState::instance().load(0);
++			DEBUG_ShowMsg("DEBUG: LOADSTATE read %s\n", savefilename.c_str());
++		} catch (const SaveState::Error &err) {
++			DEBUG_ShowMsg("DEBUG: LOADSTATE failed: %s\n", err.c_str());
++		}
++		use_save_file = old_use;
++		force_load_state = old_force;
++		savefilename = old_name;
++		return true;
++	}
++
+ 	if (command == "MEMDUMP") { // Dump memory to file
+ 		uint16_t seg;
+ 		uint32_t ofs, num;
+@@ -2293,6 +2729,82 @@ bool ParseCommand(char* str) {
+ 		return true;
+ 	}
+ 
++	if (command == "MEMDUMPASC") {
++		uint16_t seg; uint32_t ofs,num;
++		if (!ParseMemoryDumpArguments(found,seg,ofs,num)) {
++			DEBUG_ShowMsg("DEBUG: Usage: MEMDUMPASC seg:off len\n");
++			return true;
++		}
++		DBG_MemDumpAscii(seg,ofs,num);
++		return true;
++	}
++
++	if (command == "MEMCMP") {
++		uint16_t s1,s2; uint32_t o1,o2,len;
++		if (!DBG_ParseTwoRanges(found,s1,o1,s2,o2,len)) {
++			DEBUG_ShowMsg("DEBUG: Usage: MEMCMP seg1:off1 seg2:off2 len\n");
++			return true;
++		}
++		DBG_MemCmp(s1,o1,s2,o2,len);
++		return true;
++	}
++
++	if (command == "MEMFINDSTR") {
++		uint16_t seg; uint32_t ofs,len; int used=0;
++		unsigned a=0,b=0,c=0;
++		if (sscanf(found,"%x:%x %x%n",&a,&b,&c,&used)!=3 || a>0xFFFF || c==0) {
++			DEBUG_ShowMsg("DEBUG: Usage: MEMFINDSTR seg:off len text\n");
++			return true;
++		}
++		seg=(uint16_t)a; ofs=b; len=c;
++		char *text=found+used;
++		while (*text==' ') text++;
++		DBG_MemFindStr(seg,ofs,len,text);
++		return true;
++	}
++
++	if (command == "MEMFINDHEX") {
++		unsigned a=0,b=0,c=0; int used=0;
++		if (sscanf(found,"%x:%x %x%n",&a,&b,&c,&used)!=3 || a>0xFFFF || c==0) {
++			DEBUG_ShowMsg("DEBUG: Usage: MEMFINDHEX seg:off len hexbytes (e.g. 4E45)\n");
++			return true;
++		}
++		const char *hp = found + used;
++		std::vector<uint8_t> pat;
++		int hi=-1;
++		for (const char *p=hp; *p; ++p) {
++			int v=-1;
++			if (*p>='0' && *p<='9') v=*p-'0';
++			else if (*p>='a' && *p<='f') v=*p-'a'+10;
++			else if (*p>='A' && *p<='F') v=*p-'A'+10;
++			else if (*p==' ' || *p=='\t' || *p==',') continue;
++			else { pat.clear(); break; }
++			if (hi<0) hi=v;
++			else { pat.push_back((uint8_t)((hi<<4)|v)); hi=-1; }
++		}
++		if (pat.empty() || hi>=0) {
++			DEBUG_ShowMsg("DEBUG: Usage: MEMFINDHEX seg:off len hexbytes (even number of hex digits)\n");
++			return true;
++		}
++		DBG_MemFindHex((uint16_t)a,b,c,pat);
++		return true;
++	}
++
++	if (command == "NEDUMP") {
++		unsigned a=0,b=0;
++		if (sscanf(found,"%x:%x",&a,&b)!=2 || a>0xFFFF) {
++			DEBUG_ShowMsg("DEBUG: Usage: NEDUMP seg:off (MZ or NE address)\n");
++			return true;
++		}
++		DBG_NEDump((uint16_t)a,b);
++		return true;
++	}
++
++	if (command == "WINSCAN") {
++		DBG_WINScan();
++		return true;
++	}
++
+     if (command == "MEMFIND") { // Start a memory search instance with seg:ofs range
+ 		uint32_t valfind;
+ 		uint8_t valfind8;
+@@ -2807,6 +3319,11 @@ bool ParseCommand(char* str) {
+ 		uint16_t seg = (uint16_t)GetHexValue(found,found);found++; // skip ":"
+ 		uint32_t ofs = GetHexValue(found,found);
+ 		CBreakpoint::AddBreakpoint(seg,ofs,false);
++		/* Activate immediately so an external MCP client can arm a
++		 * breakpoint while the guest is still running.  The heavy-debug
++		 * check matches by address, so this also survives the loader
++		 * overwriting the 0xCC byte with the real instruction. */
++		CBreakpoint::ActivateBreakpoints();
+ 		DEBUG_ShowMsg("DEBUG: Set breakpoint at %04X:%04X\n",seg,ofs);
+ 		return true;
+ 	}
+@@ -2817,6 +3334,7 @@ bool ParseCommand(char* str) {
+ 		uint16_t seg = (uint16_t)GetHexValue(found,found);found++; // skip ":"
+ 		uint32_t ofs = GetHexValue(found,found);
+ 		CBreakpoint::AddMemBreakpoint(seg,ofs);
++		CBreakpoint::ActivateBreakpoints();
+ 		DEBUG_ShowMsg("DEBUG: Set memory breakpoint at %04X:%04X\n",seg,ofs);
+ 		return true;
+ 	}
+@@ -2860,6 +3378,7 @@ bool ParseCommand(char* str) {
+ 				DEBUG_ShowMsg("DEBUG: Set interrupt breakpoint at INT %02X AH=%02X AL=%02X\n",intNr,valAH,valAL);
+ 			}
+ 		}
++		CBreakpoint::ActivateBreakpoints();
+ 		return true;
+ 	}
+ 
+@@ -3086,6 +3605,29 @@ bool ParseCommand(char* str) {
+         return true;
+     }
+ 
++	if (command == "LOGSEGLOAD") { // log one loader routine's calls+returns
++		if (!strcmp(found,"OFF") || !strcmp(found,"0")) {
++			DBG_SegLogClose();
++			DEBUG_ShowMsg("DEBUG: segment-load log stopped\n");
++			return true;
++		}
++		unsigned a=0,b=0;
++		if (sscanf(found,"%x:%x",&a,&b)!=2 || a>0xFFFF) {
++			DEBUG_ShowMsg("DEBUG: Usage: LOGSEGLOAD seg:off | LOGSEGLOAD OFF\n");
++			return true;
++		}
++		DBG_SegLogClose();
++		seglog_fp = fopen("SEGLOAD.TXT","w");
++		if (!seglog_fp) {
++			DEBUG_ShowMsg("DEBUG: could not create SEGLOAD.TXT\n");
++			return true;
++		}
++		seglog_seg=(uint16_t)a; seglog_off=b;
++		seglog_active=true; seglog_ret_pending=false;
++		DEBUG_ShowMsg("DEBUG: logging segment loads at %04X:%04X -> SEGLOAD.TXT\n",a,b);
++		return true;
++	}
++
+ 	if (command == "C") { // Set code overview
+ 		uint16_t codeSeg = (uint16_t)GetHexValue(found,found); found++;
+ 		uint32_t codeOfs = GetHexValue(found,found);
+@@ -3146,15 +3688,28 @@ bool ParseCommand(char* str) {
+ 		command = "logcode";
+ 	}
+ 
++	if (command == "LOGB") { // Create binary delta CPU log file
++		cpuLogType = 4;
++		command = "logcode";
++	}
++
+ 	if (command == "logcode") { //Shared code between all logs
+ 		DEBUG_ShowMsg("DEBUG: Starting log\n");
+-		cpuLogFile.open("LOGCPU.TXT");
++		if (cpuLogType == 4) {
++			cpuLogFile.open("LOGCPU.BIN", ios::out | ios::binary | ios::trunc);
++			if (cpuLogFile.is_open()) WriteBinaryCpuLogHeader(cpuLogFile);
++			ResetBinaryCpuLog();
++		} else {
++			cpuLogFile.open("LOGCPU.TXT");
++		}
+ 		if (!cpuLogFile.is_open()) {
+ 			DEBUG_ShowMsg("DEBUG: Logfile couldn't be created.\n");
+ 			return false;
+ 		}
+-		//Initialize log object
+-		cpuLogFile << hex << noshowbase << setfill('0') << uppercase;
++		if (cpuLogType != 4) {
++			//Initialize text log object
++			cpuLogFile << hex << noshowbase << setfill('0') << uppercase;
++		}
+ 		cpuLog = true;
+ 		cpuLogCounter = (int)GetHexValue(found,found);
+ 
+@@ -3166,6 +3721,25 @@ bool ParseCommand(char* str) {
+ 
+ #endif
+ 
++	if (command == "MOUSEMOVE") { // inject relative mouse movement (decimal pixels)
++		char *end = found;
++		long dx = strtol(found, &end, 10);
++		found = end;
++		long dy = strtol(found, &end, 10);
++		found = end;
++		Mouse_InjectRelative((int)dx, (int)dy);
++		DEBUG_ShowMsg("DEBUG: mouse move %ld,%ld\n", dx, dy);
++		return true;
++	}
++
++	if (command == "MOUSEBUTTON") { // 1 = left down, 0 = left up
++		long down = strtol(found, NULL, 10);
++		if (down) Mouse_ButtonPressed(0);
++		else Mouse_ButtonReleased(0);
++		DEBUG_ShowMsg("DEBUG: mouse button %ld\n", down);
++		return true;
++	}
++
+ 	if (command == "INTT") { //trace int.
+ 		uint8_t intNr = (uint8_t)GetHexValue(found,found);
+ 		DEBUG_ShowMsg("DEBUG: Tracing INT %02X\n",intNr);
+@@ -4360,10 +4934,15 @@ bool ParseCommand(char* str) {
+ 		DEBUG_ShowMsg("CALLBACKS                 - Show callbacks of interrupts.\n");
+ 		DEBUG_ShowMsg("INT [nr] / INTT [nr]      - Execute / Trace into interrupt.\n");
+ 		DEBUG_ShowMsg("MEMREAD <seg>:<off> <len> - Read 1-256 conventional RAM bytes (external).\n");
++		DEBUG_ShowMsg("SAVESTATE <file>          - Save full emulator state to a file.\n");
++		DEBUG_ShowMsg("LOADSTATE <file>          - Load full emulator state from a file.\n");
+ 		DEBUG_ShowMsg("STEPIN                    - Execute exactly one instruction, then stop.\n");
++		DEBUG_ShowMsg("MOUSEMOVE <dx> <dy>       - Inject relative mouse movement (decimal).\n");
++		DEBUG_ShowMsg("MOUSEBUTTON <1|0>         - Inject left mouse down/up.\n");
+ #if C_HEAVY_DEBUG
+ 		DEBUG_ShowMsg("LOG [num]                 - Write CPU log file.\n");
+ 		DEBUG_ShowMsg("LOGS/LOGL/LOGC [num]      - Write short/long/cs:ip-only CPU log file.\n");
++		DEBUG_ShowMsg("LOGB [num]                - Write binary delta CPU log to LOGCPU.BIN.\n");
+ 		DEBUG_ShowMsg("HEAVYLOG                  - Enable/Disable automatic CPU log when DOSBox-X exits.\n");
+ 		DEBUG_ShowMsg("ZEROPROTECT               - Enable/Disable zero code execution detection.\n");
+ #endif
+@@ -4383,6 +4962,13 @@ bool ParseCommand(char* str) {
+ 		DEBUG_ShowMsg("EMU MEM/MACHINE           - Show emulator memory or machine info.\n");
+ 		DEBUG_ShowMsg("MEMDUMP seg:off len [filename] - Write memory to a text file (default: MEMDUMP.TXT).\n");
+ 		DEBUG_ShowMsg("MEMDUMPBIN seg:off len [filename] - Write memory to a binary file (default: MEMDUMP.BIN).\n");
++		DEBUG_ShowMsg("MEMDUMPASC seg:off len      - Hex+ASCII memory dump to the debugger console.\n");
++		DEBUG_ShowMsg("MEMCMP seg1:off1 seg2:off2 len - Compare two memory ranges.\n");
++		DEBUG_ShowMsg("MEMFINDSTR seg:off len text - Case-insensitive string search in memory.\n");
++		DEBUG_ShowMsg("MEMFINDHEX seg:off len hexbytes - Exact byte-pattern search in memory.\n");
++		DEBUG_ShowMsg("LOGSEGLOAD seg:off / OFF - Log loader calls+returns to SEGLOAD.TXT.\n");
++		DEBUG_ShowMsg("NEDUMP seg:off            - Parse an MZ/NE header and list its segments.\n");
++		DEBUG_ShowMsg("WINSCAN                   - Scan conventional RAM for loaded MZ/NE modules.\n");
+         DEBUG_ShowMsg("MEMFIND [seg]:[off] [.].. - Start memory find search instance.\n");
+ 		DEBUG_ShowMsg("MEMS [operator] [value]   - Search value within instance.\n");
+ 		DEBUG_ShowMsg("SELINFO [segName]         - Show selector info.\n");
+@@ -5407,6 +5993,30 @@ void DEBUG_Enable_Handler(bool pressed) {
+ 
+ 	static bool showhelp=false;
+ 
++	/* When the MCP controller is connected we must not hand the emulator to
++	 * the interactive DEBUG_Loop: that loop calls getch() and blocks, so
++	 * ControlServer_Poll() stops being serviced exactly when a breakpoint
++	 * has just stopped the CPU.  Keep the debugger state headless instead;
++	 * Normal_Loop()/DEBUG_Loop() poll MCP and hold the CPU while
++	 * DEBUG_MCP_IsStopped() is true. */
++	if (ControlServer_IsConnected()) {
++		CPU_CycleLeft+=CPU_Cycles;
++		CPU_Cycles=0;
++		debugging=true;
++		debug_running=false;
++		runnormal=false;
++		CBreakpoint::DeactivateBreakpoints();
++		{
++			char ev[64];
++			snprintf(ev, sizeof(ev), "CS:IP=%04X:%04X",
++				(unsigned)SegValue(cs),(unsigned)reg_eip);
++			ControlServer_SendEvent("break", ev);
++		}
++		std::fprintf(stderr,"[EDBG] headless break CS:IP=%04X:%04X\n",
++			(unsigned)SegValue(cs),(unsigned)reg_eip);
++		return;
++	}
++
+ #if defined(MACOSX) || defined(LINUX)
+ 	/* Mac OS X does not have a console for us to just allocate on a whim like Windows does.
+ 	   So the debugger interface is useless UNLESS the user has started us from a terminal
+@@ -5992,6 +6602,11 @@ static void LogInstruction(uint16_t segValue, uint32_t eipValue,  ofstream& out)
+ 		return;
+ 	}
+ 
++	if (cpuLogType == 4) { //Binary trace: CS:IP plus registers changed since last record.
++		WriteBinaryCpuLog(segValue, eipValue, out);
++		return;
++	}
++
+ 	PhysPt start = (PhysPt)GetAddress(segValue,eipValue);
+ 	char dline[200];Bitu size;
+ 	size = DasmI386(dline, start, reg_eip, cpu.code.big);
+@@ -6204,6 +6819,7 @@ void DEBUG_SetupConsole(void) {
+ void DEBUG_ShutDown(Section * /*sec*/) {
+ 	TIMER_DelTickHandler(ControlServer_Poll);
+ 	ControlServer_Stop();
++	DBG_SegLogClose();
+ 
+ 	CBreakpoint::DeleteAll();
+ 	CDebugVar::DeleteAll();
+@@ -6239,8 +6855,11 @@ void DEBUG_Init() {
+ 	Section_prop *section = static_cast<Section_prop *>(control->GetSection("dosbox"));
+ 	const int mcp_server_port = section != NULL ? section->Get_int("mcp_server") : 0;
+ 	if (mcp_server_port > 0) {
++		/* ControlServer_Poll() is called from Normal_Loop() and
++		 * DEBUG_Loop().  Do NOT also register it as a timer tick handler:
++		 * that runs from inside the CPU loop and could execute debugger
++		 * commands in interrupt context. */
+ 		ControlServer_Start(static_cast<uint16_t>(mcp_server_port));
+-		TIMER_AddTickHandler(ControlServer_Poll);
+ 	}
+ 
+ 	/* Reset code overview and input line */
+@@ -6471,7 +7090,7 @@ static void DrawVariables(void) {
+ 
+ #if C_HEAVY_DEBUG
+ 
+-const uint32_t LOGCPUMAX = 20000;
++const uint32_t LOGCPUMAX = 10000000;
+ 
+ static uint32_t logCount = 0;
+ 
+@@ -6663,6 +7282,7 @@ void DEBUG_HeavyWriteLogInstruction(void) {
+ }
+ 
+ bool DEBUG_HeavyIsBreakpoint(void) {
++	DBG_SegLogCheck();
+ #if defined(C_DOSBOX_AGENT)
+ 	const bool agent_trace_was_active = agent_trace_active;
+     if (agent_trace_active) {
+@@ -6682,7 +7302,7 @@ bool DEBUG_HeavyIsBreakpoint(void) {
+ 		if (cpuLogCounter<=0) {
+ 			cpuLogFile.flush();
+ 			cpuLogFile.close();
+-			DEBUG_ShowMsg("DEBUG: cpu log LOGCPU.TXT created\n");
++			DEBUG_ShowMsg("DEBUG: cpu log %s created\n", CpuLogFileName());
+ 			cpuLog = false;
+ 			DEBUG_EnableDebugger();
+ 			return true;
+@@ -6719,7 +7339,7 @@ void DEBUG_StopLog(void) {
+ 	if (cpuLog) {
+         cpuLogCounter = 0;
+         cpuLogFile.close();
+-        DEBUG_ShowMsg("DEBUG: cpu log LOGCPU.TXT stopped\n");
++        DEBUG_ShowMsg("DEBUG: cpu log %s stopped\n", CpuLogFileName());
+         cpuLog = false;
+     }
+ }
+diff --git a/src/debug/debug_mcp.cpp b/src/debug/debug_mcp.cpp
+index 64eb329d4..6b65d6960 100644
+--- a/src/debug/debug_mcp.cpp
++++ b/src/debug/debug_mcp.cpp
+@@ -2,713 +2,359 @@
+ 
+ #include "config.h"
+ 
+-#if defined(C_DEBUG) && C_DEBUG && \
+-        ((defined(C_SDL_NET) && C_SDL_NET) || \
+-         (defined(C_SDL2_NET) && C_SDL2_NET))
++#if defined(C_DEBUG) && C_DEBUG
+ 
+ #include "debug.h"
+ 
+-#if defined(C_SDL2_NET) && C_SDL2_NET
+-#include <SDL2/SDL_net.h>
+-#else
+-#include <SDL_net.h>
+-#endif
+-
+-#include <atomic>
++#include <arpa/inet.h>
++#include <cctype>
++#include <cerrno>
+ #include <chrono>
+-#include <climits>
+ #include <cstdio>
++#include <cstring>
+ #include <deque>
+-#include <mutex>
++#include <fcntl.h>
++#include <netinet/in.h>
++#include <poll.h>
+ #include <string>
+-#include <thread>
++#include <sys/socket.h>
++#include <unistd.h>
+ #include <vector>
++#include <utility>
+ 
+ namespace {
+ 
+ constexpr const char* CONTROL_HOST = "127.0.0.1";
+-
+-constexpr int SOCKET_POLL_TIMEOUT_MS = 50;
+-constexpr int RECONNECT_DELAY_MS = 1000;
+-
+-constexpr size_t MAX_INCOMING_MESSAGES = 1024;
+-constexpr size_t MAX_OUTGOING_MESSAGES = 1024;
+-constexpr size_t MAX_CAPTURE_LINES = 16384;
+-
+-// Protect against a peer continuously sending data without '\n'.
++constexpr int CONNECT_RETRY_MS = 1000;
+ constexpr size_t MAX_RECEIVE_BUFFER = 1024 * 1024;
+ 
+-std::atomic<bool> g_running{false};
+-std::atomic<bool> g_connected{false};
+-
++bool g_running = false;
++bool g_connected = false;
++bool g_connecting = false;
++int g_fd = -1;
+ uint16_t g_port = 0;
+-
+-std::thread g_thread;
+-
+-std::mutex g_incoming_mutex;
+-std::deque<std::string> g_incoming;
+-
+-std::mutex g_outgoing_mutex;
++std::chrono::steady_clock::time_point g_last_connect;
++std::string g_receive_buffer;
+ std::deque<std::string> g_outgoing;
+ 
+-std::mutex g_capture_mutex;
+ bool g_capture_active = false;
+ size_t g_capture_discarded = 0;
+ std::vector<std::string> g_capture_lines;
+ 
+-//
+-// All socket operations happen ONLY in the I/O thread.
+-//
+-// This is important because SDLNet_TCP_Send/Recv/Close don't
+-// have to be synchronized with the DOSBox-X emulation thread.
+-//
+-
+-TCPsocket g_socket = nullptr;
+-SDLNet_SocketSet g_socket_set = nullptr;
+-
+-std::string g_receive_buffer;
+-
+-struct ControlRequest {
+-    std::string id;
+-    std::string command;
+-    std::string payload;
+-};
+-
+-bool IsSpace(const char c)
+-{
+-    return c == ' ' || c == '\t';
+-}
+-
+-std::string TrimLeft(std::string value)
+-{
+-    while (!value.empty() && IsSpace(value.front()))
+-        value.erase(value.begin());
+-
+-    return value;
+-}
+-
+-std::string UpperAscii(std::string value)
+-{
+-    for (auto& c : value) {
+-        if (c >= 'a' && c <= 'z')
+-            c = static_cast<char>(c - ('a' - 'A'));
+-    }
+-
+-    return value;
+-}
+-
+-std::string SanitizeProtocolLine(std::string line)
+-{
+-    for (auto& c : line) {
+-        if (c == '\r' || c == '\n')
+-            c = ' ';
+-    }
+-
+-    return line;
+-}
+-
+-std::string FirstWordUpper(const std::string& value)
+-{
+-    const auto begin = value.find_first_not_of(" \t");
+-    if (begin == std::string::npos)
+-        return {};
+-
+-    const auto end = value.find_first_of(" \t", begin);
+-    if (end == std::string::npos)
+-        return UpperAscii(value.substr(begin));
+-
+-    return UpperAscii(value.substr(begin, end - begin));
+-}
+-
+-bool IsResumeDebuggerCommand(const std::string& command)
+-{
+-    const auto word = FirstWordUpper(command);
+-    return word == "RUN" || word == "RUNWATCH" || word == "VRT";
+-}
+-
+-void BeginCapture()
+-{
+-    std::lock_guard<std::mutex> lock(g_capture_mutex);
+-    g_capture_lines.clear();
+-    g_capture_discarded = 0;
+-    g_capture_active = true;
+-}
+-
+-std::vector<std::string> EndCapture()
+-{
+-    std::lock_guard<std::mutex> lock(g_capture_mutex);
+-    g_capture_active = false;
+-
+-    std::vector<std::string> lines;
+-    lines.swap(g_capture_lines);
+-
+-    if (g_capture_discarded > 0) {
+-        char message[128];
+-        std::snprintf(message,
+-                      sizeof(message),
+-                      "[%lu debug output lines discarded]",
+-                      static_cast<unsigned long>(g_capture_discarded));
+-        lines.emplace_back(message);
+-        g_capture_discarded = 0;
+-    }
+-
+-    return lines;
+-}
++void ProcessControlCommand(const std::string &line);
++std::string SanitizeLine(std::string s);
++void BeginCapture();
++std::vector<std::string> EndCapture();
+ 
+-void CloseConnection()
++void CloseSocket()
+ {
+-    g_connected.store(false);
+-
+-    if (g_socket) {
+-        if (g_socket_set)
+-            SDLNet_TCP_DelSocket(g_socket_set, g_socket);
+-
+-        SDLNet_TCP_Close(g_socket);
+-        g_socket = nullptr;
+-    }
+-
+-    if (g_socket_set) {
+-        SDLNet_FreeSocketSet(g_socket_set);
+-        g_socket_set = nullptr;
++    if (g_fd >= 0) {
++        close(g_fd);
++        g_fd = -1;
+     }
+-
++    g_connected = false;
++    g_connecting = false;
+     g_receive_buffer.clear();
+ }
+ 
+-bool Connect()
++void StartConnect()
+ {
+-    IPaddress address = {};
+-
+-    if (SDLNet_ResolveHost(&address, CONTROL_HOST, g_port) < 0) {
+-        std::fprintf(stderr,
+-                     "[ControlClient] SDLNet_ResolveHost failed: %s\n",
+-                     SDLNet_GetError());
++    CloseSocket();
+ 
+-        return false;
+-    }
+-
+-    std::fprintf(stderr,
+-                 "[ControlClient] connecting to %s:%u...\n",
+-                 CONTROL_HOST,
+-                 static_cast<unsigned>(g_port));
+-
+-    TCPsocket socket = SDLNet_TCP_Open(&address);
+-
+-    if (!socket)
+-        return false;
+-
+-    SDLNet_SocketSet socket_set = SDLNet_AllocSocketSet(1);
+-
+-    if (!socket_set) {
+-        std::fprintf(stderr,
+-                     "[ControlClient] SDLNet_AllocSocketSet failed: %s\n",
+-                     SDLNet_GetError());
+-
+-        SDLNet_TCP_Close(socket);
+-        return false;
+-    }
+-
+-    if (SDLNet_TCP_AddSocket(socket_set, socket) < 0) {
+-        std::fprintf(stderr,
+-                     "[ControlClient] SDLNet_TCP_AddSocket failed: %s\n",
+-                     SDLNet_GetError());
+-
+-        SDLNet_FreeSocketSet(socket_set);
+-        SDLNet_TCP_Close(socket);
+-
+-        return false;
+-    }
+-
+-    g_socket = socket;
+-    g_socket_set = socket_set;
+-
+-    g_receive_buffer.clear();
+-
+-    g_connected.store(true);
+-
+-    std::fprintf(stderr,
+-                 "[ControlClient] connected to %s:%u\n",
+-                 CONTROL_HOST,
+-                 static_cast<unsigned>(g_port));
+-
+-    return true;
+-}
+-
+-bool SendAll(const std::string& data)
+-{
+-    if (!g_socket)
+-        return false;
+-
+-    const char* ptr = data.data();
+-    size_t remaining = data.size();
+-
+-    while (remaining > 0) {
+-        const int chunk =
+-                remaining > static_cast<size_t>(INT_MAX)
+-                        ? INT_MAX
+-                        : static_cast<int>(remaining);
+-
+-        const int sent = SDLNet_TCP_Send(
+-                g_socket,
+-                ptr,
+-                chunk);
+-
+-        if (sent <= 0)
+-            return false;
++    int fd = socket(AF_INET, SOCK_STREAM, 0);
++    if (fd < 0)
++        return;
+ 
+-        ptr += sent;
+-        remaining -= static_cast<size_t>(sent);
++    int flags = fcntl(fd, F_GETFL, 0);
++    if (flags >= 0)
++        fcntl(fd, F_SETFL, flags | O_NONBLOCK);
++
++    struct sockaddr_in addr;
++    memset(&addr, 0, sizeof(addr));
++    addr.sin_family = AF_INET;
++    addr.sin_port = htons(g_port);
++    addr.sin_addr.s_addr = inet_addr(CONTROL_HOST);
++
++    g_fd = fd;
++    g_last_connect = std::chrono::steady_clock::now();
++
++    int rc = connect(fd, (struct sockaddr *)&addr, sizeof(addr));
++    if (rc == 0) {
++        g_connected = true;
++        g_connecting = false;
++        std::fprintf(stderr, "[ControlClient] connected to %s:%u\n",
++                     CONTROL_HOST, (unsigned)g_port);
++    } else if (errno == EINPROGRESS) {
++        g_connecting = true;
++    } else {
++        CloseSocket();
+     }
+-
+-    return true;
+ }
+ 
+-void QueueIncoming(std::string message)
+-{
+-    std::lock_guard<std::mutex> lock(g_incoming_mutex);
+-
+-    if (g_incoming.size() >= MAX_INCOMING_MESSAGES)
+-        g_incoming.pop_front();
+-
+-    g_incoming.emplace_back(std::move(message));
+-}
+-
+-bool PopIncoming(std::string& message)
+-{
+-    std::lock_guard<std::mutex> lock(g_incoming_mutex);
+-
+-    if (g_incoming.empty())
+-        return false;
+-
+-    message = std::move(g_incoming.front());
+-    g_incoming.pop_front();
+-    return true;
+-}
+-
+-void ProcessReceiveBuffer()
++void QueueLine(const std::string& line)
+ {
++    std::string &buf = g_receive_buffer;
+     for (;;) {
+-        const auto newline = g_receive_buffer.find('\n');
+-
+-        if (newline == std::string::npos)
++        const auto nl = buf.find('\n');
++        if (nl == std::string::npos)
+             break;
+-
+-        std::string line =
+-                g_receive_buffer.substr(0, newline);
+-
+-        g_receive_buffer.erase(0, newline + 1);
+-
+-        // Support both "\n" and "\r\n".
+-        if (!line.empty() && line.back() == '\r')
+-            line.pop_back();
+-
+-        if (line.empty())
+-            continue;
+-
+-        QueueIncoming(std::move(line));
++        std::string cmd = buf.substr(0, nl);
++        buf.erase(0, nl + 1);
++        if (!cmd.empty() && cmd.back() == '\r')
++            cmd.pop_back();
++        if (!cmd.empty()) {
++            std::fprintf(stderr, "[ControlClient] mcp command %s\n", cmd.c_str());
++            ProcessControlCommand(cmd);
++        }
+     }
+ }
+ 
+-bool Receive()
++void ReceiveAvailable()
+ {
+     char buffer[8192];
+-
+-    const int received =
+-            SDLNet_TCP_Recv(
+-                    g_socket,
+-                    buffer,
+-                    sizeof(buffer));
+-
+-    if (received <= 0)
+-        return false;
+-
+-    g_receive_buffer.append(
+-            buffer,
+-            static_cast<size_t>(received));
+-
+-    if (g_receive_buffer.size() > MAX_RECEIVE_BUFFER) {
+-        std::fprintf(stderr,
+-                     "[ControlClient] receive buffer overflow\n");
+-
+-        return false;
+-    }
+-
+-    ProcessReceiveBuffer();
+-
+-    return true;
+-}
+-
+-bool FlushOutgoing()
+-{
+     for (;;) {
+-        std::string message;
+-
+-        {
+-            std::lock_guard<std::mutex> lock(g_outgoing_mutex);
+-
+-            if (g_outgoing.empty())
+-                return true;
+-
+-            message = g_outgoing.front();
++        const int got = recv(g_fd, buffer, sizeof(buffer), 0);
++        if (got > 0) {
++            g_receive_buffer.append(buffer, (size_t)got);
++            if (g_receive_buffer.size() > MAX_RECEIVE_BUFFER) {
++                CloseSocket();
++                return;
++            }
++            QueueLine(g_receive_buffer);
++            continue;
+         }
+-
+-        if (!SendAll(message))
+-            return false;
+-
+-        {
+-            std::lock_guard<std::mutex> lock(g_outgoing_mutex);
+-
+-            if (!g_outgoing.empty())
+-                g_outgoing.pop_front();
++        if (got == 0) {
++            CloseSocket();
++            return;
+         }
++        if (errno == EAGAIN || errno == EWOULDBLOCK)
++            return;
++        CloseSocket();
++        return;
+     }
+ }
+ 
+-void SleepReconnectDelay()
+-{
+-    //
+-    // Do it in short steps so ControlServer_Stop()
+-    // doesn't have to wait a full second.
+-    //
+-
+-    constexpr int step_ms = 50;
+-
+-    for (int elapsed = 0;
+-         elapsed < RECONNECT_DELAY_MS && g_running.load();
+-         elapsed += step_ms) {
+-
+-        std::this_thread::sleep_for(
+-                std::chrono::milliseconds(step_ms));
+-    }
+-}
+-
+-void ThreadMain()
++void FlushOutgoing()
+ {
+-    while (g_running.load()) {
+-
+-        //
+-        // Connect / reconnect
+-        //
+-
+-        if (!g_socket) {
+-            if (!Connect()) {
+-                SleepReconnectDelay();
+-                continue;
+-            }
+-        }
+-
+-        //
+-        // Send everything currently queued.
+-        //
+-
+-        if (!FlushOutgoing()) {
+-            std::fprintf(stderr,
+-                         "[ControlClient] connection lost while sending\n");
+-
+-            CloseConnection();
+-            continue;
+-        }
+-
+-        //
+-        // Wait for incoming data.
+-        //
+-
+-        const int ready =
+-                SDLNet_CheckSockets(
+-                        g_socket_set,
+-                        SOCKET_POLL_TIMEOUT_MS);
+-
+-        if (ready < 0) {
+-            std::fprintf(stderr,
+-                         "[ControlClient] SDLNet_CheckSockets failed: %s\n",
+-                         SDLNet_GetError());
+-
+-            CloseConnection();
+-            continue;
+-        }
+-
+-        if (ready == 0)
+-            continue;
+-
+-        if (g_socket && SDLNet_SocketReady(g_socket)) {
+-            if (!Receive()) {
+-                std::fprintf(stderr,
+-                             "[ControlClient] connection closed\n");
+-
+-                CloseConnection();
++    while (g_fd >= 0 && !g_outgoing.empty()) {
++        std::string &msg = g_outgoing.front();
++        const char *p = msg.data();
++        size_t left = msg.size();
++        while (left) {
++            const ssize_t n = send(g_fd, p, left, MSG_NOSIGNAL);
++            if (n > 0) {
++                p += n;
++                left -= (size_t)n;
+                 continue;
+             }
++            if (n < 0 && (errno == EAGAIN || errno == EWOULDBLOCK))
++                return;
++            CloseSocket();
++            return;
+         }
++        g_outgoing.pop_front();
+     }
+-
+-    CloseConnection();
+ }
+ 
+-bool ParseControlRequest(const std::string& line,
+-                         ControlRequest& request,
+-                         std::string& error)
++struct Request {
++    std::string id;
++    std::string command;
++    std::string payload;
++};
++
++bool ParseRequest(const std::string &line, Request &r, std::string &error)
+ {
+     if (line.compare(0, 4, "REQ ") != 0) {
+         error = "expected REQ <id> <PING|BREAK|EXEC>";
+         return false;
+     }
+-
+-    const auto id_begin = line.find_first_not_of(" \t", 4);
+-    if (id_begin == std::string::npos) {
+-        error = "missing request id";
+-        return false;
+-    }
+-
+-    const auto id_end = line.find_first_of(" \t", id_begin);
+-    if (id_end == std::string::npos) {
+-        error = "missing request command";
+-        return false;
+-    }
+-
+-    request.id = line.substr(id_begin, id_end - id_begin);
+-
+-    const auto command_begin = line.find_first_not_of(" \t", id_end);
+-    if (command_begin == std::string::npos) {
+-        error = "missing request command";
+-        return false;
+-    }
+-
+-    const auto command_end = line.find_first_of(" \t", command_begin);
+-    if (command_end == std::string::npos) {
+-        request.command = UpperAscii(line.substr(command_begin));
+-        request.payload.clear();
+-    } else {
+-        request.command = UpperAscii(
+-                line.substr(command_begin, command_end - command_begin));
+-        request.payload = TrimLeft(line.substr(command_end));
+-    }
+-
+-    if (request.command != "PING" &&
+-            request.command != "BREAK" &&
+-            request.command != "EXEC") {
++    size_t a = line.find_first_not_of(" \t", 4);
++    if (a == std::string::npos) { error = "missing request id"; return false; }
++    size_t b = line.find_first_of(" \t", a);
++    if (b == std::string::npos) { error = "missing request command"; return false; }
++    r.id = line.substr(a, b - a);
++    size_t c = line.find_first_not_of(" \t", b);
++    if (c == std::string::npos) { error = "missing request command"; return false; }
++    size_t d = line.find_first_of(" \t", c);
++    r.command = line.substr(c, d == std::string::npos ? std::string::npos : d - c);
++    for (char &ch : r.command) ch = (char)toupper((unsigned char)ch);
++    if (d != std::string::npos) {
++        size_t e = line.find_first_not_of(" \t", d);
++        r.payload = (e == std::string::npos) ? "" : line.substr(e);
++    }
++    if (r.command != "PING" && r.command != "BREAK" && r.command != "EXEC") {
+         error = "unknown request command";
+         return false;
+     }
+-
+-    if (request.command == "EXEC" && request.payload.empty()) {
++    if (r.command == "EXEC" && r.payload.empty()) {
+         error = "missing debugger command";
+         return false;
+     }
+-
+     return true;
+ }
+ 
+-void SendResponse(const std::string& id,
+-                  const bool ok,
+-                  const std::vector<std::string>& lines)
+-{
+-    std::string response = std::string("BEGIN ") + id + (ok ? " OK" : " ERR");
+-
+-    for (const auto& line : lines) {
+-        response.push_back('\n');
+-        response += SanitizeProtocolLine(line);
+-    }
+-
+-    response += "\nEND ";
+-    response += id;
+-
+-    ControlServer_Send(std::move(response));
+-}
+-
+-void SendErrorResponse(const std::string& id, const std::string& error)
+-{
+-    SendResponse(id.empty() ? "0" : id, false, {error});
+-}
+-
+-bool OutgoingQueueEmpty()
++void SendResponse(const std::string &id, bool ok, const std::vector<std::string> &lines)
+ {
+-    std::lock_guard<std::mutex> lock(g_outgoing_mutex);
+-    return g_outgoing.empty();
+-}
+-
+-void WaitForOutgoingDrain()
+-{
+-    constexpr int max_wait_ms = 250;
+-    constexpr int sleep_step_ms = 5;
+-
+-    for (int elapsed_ms = 0;
+-         elapsed_ms < max_wait_ms && g_running.load();
+-         elapsed_ms += sleep_step_ms) {
+-        if (OutgoingQueueEmpty() || !g_connected.load())
+-            return;
+-
+-        std::this_thread::sleep_for(
+-                std::chrono::milliseconds(sleep_step_ms));
++    std::string out = "BEGIN " + id + (ok ? " OK" : " ERR");
++    for (const auto &line : lines) {
++        out += "\n";
++        out += SanitizeLine(line);
+     }
++    out += "\nEND " + id;
++    ControlServer_Send(std::move(out));
+ }
+ 
+-void ProcessControlCommand(const std::string& line)
++void ProcessControlCommand(const std::string &line)
+ {
+-    ControlRequest request;
++    Request req;
+     std::string error;
+-
+-    if (!ParseControlRequest(line, request, error)) {
+-        SendErrorResponse(request.id, error);
++    if (!ParseRequest(line, req, error)) {
++        SendResponse("0", false, {error});
+         return;
+     }
+ 
+-    if (request.command == "PING") {
+-        SendResponse(request.id, true, {"PONG"});
++    if (req.command == "PING") {
++        SendResponse(req.id, true, {"PONG"});
+         return;
+     }
+ 
+-    if (request.command == "EXEC" &&
+-            IsResumeDebuggerCommand(request.payload)) {
+-        SendResponse(request.id, true, {"OK"});
+-        WaitForOutgoingDrain();
+-        DEBUG_ExecuteCommand(request.payload.c_str());
++    if (req.command == "BREAK") {
++        DEBUG_MCP_RequestBreak();
++        SendResponse(req.id, true, {});
+         return;
+     }
+ 
+     BeginCapture();
++    const bool ok = DEBUG_ExecuteCommand(req.payload.c_str());
++    const auto output = EndCapture();
++    SendResponse(req.id, ok, output);
++}
+ 
+-    bool ok = true;
+-    if (request.command == "BREAK") {
+-        DEBUG_EnableDebugger();
+-    } else {
+-        ok = DEBUG_ExecuteCommand(request.payload.c_str());
++std::string SanitizeLine(std::string s)
++{
++    for (char &c : s) {
++        if (c == '\n' || c == '\r')
++            c = ' ';
+     }
+-
+-    auto output = EndCapture();
+-    SendResponse(request.id, ok, output);
++    return s;
+ }
+ 
+ } // namespace
+ 
+-void ControlServer_Start(const uint16_t port)
++void ControlServer_Start(uint16_t port)
+ {
+     if (port == 0)
+         return;
+-
+-    if (g_running.load())
+-        return;
+-
+-    if (SDLNet_Init() < 0) {
+-        std::fprintf(stderr,
+-                     "[ControlClient] SDLNet_Init failed: %s\n",
+-                     SDLNet_GetError());
+-
+-        return;
+-    }
+-
+     g_port = port;
+-
+-    {
+-        std::lock_guard<std::mutex> lock(g_incoming_mutex);
+-        g_incoming.clear();
+-    }
+-
+-    {
+-        std::lock_guard<std::mutex> lock(g_outgoing_mutex);
+-        g_outgoing.clear();
+-    }
+-
+-    g_running.store(true);
+-
+-    g_thread = std::thread(ThreadMain);
++    g_running = true;
++    g_outgoing.clear();
++    StartConnect();
+ }
+ 
+ void ControlServer_Stop()
+ {
+-    if (!g_running.exchange(false))
+-        return;
+-
+-    if (g_thread.joinable())
+-        g_thread.join();
+-
+-    g_connected.store(false);
+-    g_port = 0;
+-
+-    {
+-        std::lock_guard<std::mutex> lock(g_incoming_mutex);
+-        g_incoming.clear();
+-    }
+-
+-    {
+-        std::lock_guard<std::mutex> lock(g_outgoing_mutex);
+-        g_outgoing.clear();
+-    }
+-
+-    EndCapture();
++    g_running = false;
++    CloseSocket();
++    g_outgoing.clear();
++    g_receive_buffer.clear();
+ }
+ 
+ bool ControlServer_IsConnected()
+ {
+-    return g_connected.load();
++    return g_connected;
+ }
+ 
+ void ControlServer_Send(std::string message)
+ {
+-    if (!g_running.load())
++    if (!g_running)
+         return;
+-
+     message.push_back('\n');
+-
+-    std::lock_guard<std::mutex> lock(g_outgoing_mutex);
+-
+-    if (g_outgoing.size() >= MAX_OUTGOING_MESSAGES)
+-        g_outgoing.pop_front();
+-
+     g_outgoing.emplace_back(std::move(message));
+ }
+ 
+-void ControlServer_SendEvent(
+-        const std::string& event,
+-        const std::string& data)
++void ControlServer_SendEvent(const std::string &event, const std::string &data)
+ {
+-    ControlServer_Send(std::string("BEGIN event OK\n") +
+-                       SanitizeProtocolLine(event) + " " +
+-                       SanitizeProtocolLine(data) +
+-                       "\nEND event");
++    ControlServer_Send("BEGIN event OK\n" + SanitizeLine(event) + " " +
++                       SanitizeLine(data) + "\nEND event");
+ }
+ 
+ void ControlServer_Poll()
+ {
+-    std::string command;
+-    while (PopIncoming(command)) {
+-        std::fprintf(stderr,
+-                     "[ControlClient] mcp command %s\n",
+-                     command.c_str());
++    if (!g_running)
++        return;
+ 
+-        ProcessControlCommand(command);
++    if (g_fd < 0 || (!g_connected && !g_connecting)) {
++        const auto now = std::chrono::steady_clock::now();
++        const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - g_last_connect).count();
++        if (g_fd < 0 && elapsed >= CONNECT_RETRY_MS)
++            StartConnect();
++    }
++
++    if (g_connecting) {
++        struct pollfd pfd;
++        pfd.fd = g_fd;
++        pfd.events = POLLOUT;
++        pfd.revents = 0;
++        if (poll(&pfd, 1, 0) > 0) {
++            int err = 0;
++            socklen_t len = sizeof(err);
++            if (getsockopt(g_fd, SOL_SOCKET, SO_ERROR, &err, &len) == 0 && err == 0) {
++                g_connected = true;
++                g_connecting = false;
++                std::fprintf(stderr, "[ControlClient] connected to %s:%u\n",
++                             CONTROL_HOST, (unsigned)g_port);
++            } else {
++                CloseSocket();
++            }
++        }
+     }
++
++    if (g_connected && g_fd >= 0)
++        ReceiveAvailable();
++
++    FlushOutgoing();
+ }
+ 
+ bool DEBUG_MCP_IsCapturingOutput()
+ {
+-    std::lock_guard<std::mutex> lock(g_capture_mutex);
+     return g_capture_active;
+ }
+ 
+-void DEBUG_MCP_CaptureMessage(const char* message)
++void DEBUG_MCP_CaptureMessage(const char *message)
+ {
+-    std::lock_guard<std::mutex> lock(g_capture_mutex);
+-
+     if (!g_capture_active)
+         return;
+-
+-    if (g_capture_lines.size() >= MAX_CAPTURE_LINES) {
++    if (g_capture_lines.size() >= 16384) {
+         ++g_capture_discarded;
+         return;
+     }
+-
+     g_capture_lines.emplace_back(message ? message : "");
+ }
+ 
++namespace {
++void BeginCapture()
++{
++    g_capture_lines.clear();
++    g_capture_discarded = 0;
++    g_capture_active = true;
++}
++
++std::vector<std::string> EndCapture()
++{
++    g_capture_active = false;
++    return std::move(g_capture_lines);
++}
++} // namespace
++
+ #else
+ 
+ void ControlServer_Start(uint16_t) {}
+ void ControlServer_Stop() {}
+ bool ControlServer_IsConnected() { return false; }
+ void ControlServer_Send(std::string) {}
+-void ControlServer_SendEvent(const std::string&, const std::string&) {}
++void ControlServer_SendEvent(const std::string &, const std::string &) {}
+ void ControlServer_Poll() {}
+ bool DEBUG_MCP_IsCapturingOutput() { return false; }
+-void DEBUG_MCP_CaptureMessage(const char*) {}
++void DEBUG_MCP_CaptureMessage(const char *) {}
+ 
+ #endif
+diff --git a/src/debug/debug_mcp.h b/src/debug/debug_mcp.h
+index d3f12061c..cce8602d0 100644
+--- a/src/debug/debug_mcp.h
++++ b/src/debug/debug_mcp.h
+@@ -14,7 +14,8 @@
+ //
+ //     127.0.0.1:<port>
+ //
+-// The connection is maintained in a background thread.
++// The socket is nonblocking and is owned entirely by the emulation
++// thread; ControlServer_Poll() is called from the normal/debug loop.
+ // If the server is unavailable or the connection is lost,
+ // reconnection is attempted automatically.
+ //
+diff --git a/src/dosbox.cpp b/src/dosbox.cpp
+index b0611c888..414dbbe4b 100644
+--- a/src/dosbox.cpp
++++ b/src/dosbox.cpp
+@@ -52,6 +52,8 @@
+ #include <ctime>
+ #include <unistd.h>
+ #include "dosbox.h"
++Bitu DEBUG_EnableDebugger(void);
++void ControlServer_Poll();
+ #if defined(C_DEBUG) && defined(C_DOSBOX_AGENT)
+ #include "agent/agent_bridge.h"
+ #endif // defined(C_DEBUG) && defined(C_DOSBOX_AGENT)
+@@ -471,6 +473,19 @@ static Bitu Normal_Loop(void) {
+         while (1) {
+ #if defined(C_DEBUG) && defined(C_DOSBOX_AGENT)
+             dosbox_agent::AGENT_BridgePump();
++#endif
++#if C_DEBUG
++            ControlServer_Poll();
++            if (DEBUG_MCP_TakeBreak())
++                DEBUG_MCP_HeadlessEnter();
++            /* Also hold for a breakpoint hit: DEBUG_EnableDebugger() marks
++             * the debugger stopped without taking over the console. */
++            if (DEBUG_MCP_IsStopped()) {
++                while (DEBUG_MCP_IsStopped()) {
++                    ControlServer_Poll();
++                    SDL_Delay(5);
++                }
++            }
+ #endif
+             if (PIC_RunQueue()) {
+                 /* now is the time to check for the NMI (Non-maskable interrupt) */
+diff --git a/src/hardware/memory.cpp b/src/hardware/memory.cpp
+index 345650d0f..d4fe8b565 100644
+--- a/src/hardware/memory.cpp
++++ b/src/hardware/memory.cpp
+@@ -347,19 +347,19 @@ public:
+         if (IS_PC98_ARCH && (addr & ~0x7FFF) == 0xE0000u)
+             { /* Many PC-98 games and programs will zero 0xE0000-0xE7FFF whether or not the 4th bitplane is mapped */ }
+         else
+-            LOG(LOG_CPU,LOG_ERROR)("Write %x to rom at lin=%x phys=%llx",(int)val,(int)addr,(unsigned long long)PAGING_GetPhysicalAddress64(addr));
++            LOG(LOG_CPU,LOG_ERROR)("Write %x to rom at lin=%x phys=%llx CS:IP=%04X:%08X SS:SP=%04X:%04X",(int)val,(int)addr,(unsigned long long)PAGING_GetPhysicalAddress64(addr),(unsigned)SegValue(cs),(unsigned)reg_eip,(unsigned)SegValue(ss),(unsigned)reg_sp);
+     }
+     void writew(PhysPt addr,uint16_t val) override {
+         if (IS_PC98_ARCH && (addr & ~0x7FFF) == 0xE0000u)
+             { /* Many PC-98 games and programs will zero 0xE0000-0xE7FFF whether or not the 4th bitplane is mapped */ }
+         else
+-            LOG(LOG_CPU,LOG_ERROR)("Write %x to rom at lin=%x phys=%llx",(int)val,(int)addr,(unsigned long long)PAGING_GetPhysicalAddress64(addr));
++            LOG(LOG_CPU,LOG_ERROR)("Write %x to rom at lin=%x phys=%llx CS:IP=%04X:%08X SS:SP=%04X:%04X",(int)val,(int)addr,(unsigned long long)PAGING_GetPhysicalAddress64(addr),(unsigned)SegValue(cs),(unsigned)reg_eip,(unsigned)SegValue(ss),(unsigned)reg_sp);
+     }
+     void writed(PhysPt addr,uint32_t val) override {
+         if (IS_PC98_ARCH && (addr & ~0x7FFF) == 0xE0000u)
+             { /* Many PC-98 games and programs will zero 0xE0000-0xE7FFF whether or not the 4th bitplane is mapped */ }
+         else
+-            LOG(LOG_CPU,LOG_ERROR)("Write %x to rom at lin=%x phys=%llx",(int)val,(int)addr,(unsigned long long)PAGING_GetPhysicalAddress64(addr));
++            LOG(LOG_CPU,LOG_ERROR)("Write %x to rom at lin=%x phys=%llx CS:IP=%04X:%08X SS:SP=%04X:%04X",(int)val,(int)addr,(unsigned long long)PAGING_GetPhysicalAddress64(addr),(unsigned)SegValue(cs),(unsigned)reg_eip,(unsigned)SegValue(ss),(unsigned)reg_sp);
+     }
+ };
+ 
+diff --git a/src/ints/mouse.cpp b/src/ints/mouse.cpp
+index 84ada2d37..e8e9aa2be 100644
+--- a/src/ints/mouse.cpp
++++ b/src/ints/mouse.cpp
+@@ -850,6 +850,24 @@ static bool AllowINT33RMAccess() {
+ bool IsDebuggerActive(void);
+ #endif
+ 
++/* Debugger-only deterministic serial-mouse injection.  This bypasses the
++ * host capture lock so a trace can drive the guest mouse while the CPU is
++ * running.  The serial packet code divides by four, so feed it pixels*4. */
++void Mouse_InjectRelative(int dx,int dy) {
++	extern bool user_cursor_locked;
++	const bool old_locked = user_cursor_locked;
++	user_cursor_locked = true;  // serialmouse only accumulates while locked
++	on_mouse_event_for_serial(dx * 4, dy * 4, mouse.buttons);
++	user_cursor_locked = old_locked;
++
++	mouse.x += dx;
++	mouse.y += dy;
++	if (mouse.x > mouse.max_x) mouse.x = mouse.max_x;
++	if (mouse.x < mouse.min_x) mouse.x = mouse.min_x;
++	if (mouse.y > mouse.max_y) mouse.y = mouse.max_y;
++	if (mouse.y < mouse.min_y) mouse.y = mouse.min_y;
++}
++
+ /* FIXME: Re-test this code */
+ void Mouse_CursorMoved(float xrel,float yrel,float x,float y,bool emulate) {
+     extern bool Mouse_Vertical;
+diff --git a/src/misc/savestates.cpp b/src/misc/savestates.cpp
+index 27545af93..2bb6bf27f 100644
+--- a/src/misc/savestates.cpp
++++ b/src/misc/savestates.cpp
+@@ -54,7 +54,9 @@ std::string saveloaderr="";
+ void refresh_slots(void);
+ void GFX_LosingFocus(void), GFX_ReleaseMouse(void), MAPPER_ReleaseAllKeys(void), resetFontSize(void);
+ bool systemmessagebox(char const * aTitle, char const * aMessage, char const * aDialogType, char const * aIconType, int aDefaultButton);
+-extern std::string working_dir;
++extern std::string working_dir;
++
++extern bool DEBUG_MCP_IsStopped(void);
+ 
+ namespace
+ {
+@@ -149,6 +151,7 @@ namespace
+ 	void notifyError(const std::string& message, bool log=true)
+ 	{
+ 		if (log) LOG_MSG("%s",message.c_str());
++		if (DEBUG_MCP_IsStopped()) return;
+ 		systemmessagebox("Error",message.c_str(),"ok","error", 1);
+ 	}
+ 
+diff --git a/src/monitor/monitor.h b/src/monitor/monitor.h
+index 9cb9c6a26..95e28f60a 100644
+--- a/src/monitor/monitor.h
++++ b/src/monitor/monitor.h
+@@ -268,6 +268,12 @@ static int CB_ListenTCP( void *tData ) {/* {{{ */
+ 			return EXIT_FAILURE;
+ 		}
+ 		_server= SDLNet_TCP_Open( &_server.ip );
++		if( !_server ) {
++			/* A busy port used to leave _server null; the listener thread
++			 * then called SDLNet_TCP_Accept(nullptr) and crashed. */
++			LOG_MSG( "MONITOR: could not listen on TCP port %d: %s\n", tPort, SDLNet_GetError() );
++			return EXIT_FAILURE;
++		}
+ 		/* This is likely not the best place to put this "fix"
+          but it sorts an issue where DOSBox-X would crash
+ 			if selecting the dynamic core if DOSBox-X was 
+@@ -481,16 +487,15 @@ static int CB_ListenTCP( void *tData ) {/* {{{ */
+ 			}
+ 			#endif
+ 
+-			m._isRunning= true;
+-			#if defined(C_SDL2) && C_SDL2
+-			m._pThread= SDL_CreateThread( run,"dosbox-x monitor",&m );
+-			SDL_DetachThread( m._pThread );
+-			#else
+-			if( nullptr !=run )
++			if( run ) {
++				m._isRunning= true;
++				#if defined(C_SDL2) && C_SDL2
++				m._pThread= SDL_CreateThread( run,"dosbox-x monitor",&m );
++				SDL_DetachThread( m._pThread );
++				#else
+ 				m._pThread= SDL_CreateThread( run,(void*)&m );
+-			else
+-				exit(1);
+-			#endif	
++				#endif
++			}
+ 		}
+ 
+ 		m.ptr_monitor= &m;

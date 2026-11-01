@@ -1,0 +1,48 @@
+	.xlist
+;----------------------------Module-Header------------------------------;
+; Module Name: CLRDATA.BLT
+;
+; Color/monochrome-specific code templates and other data for compiling
+; BLTs.
+;
+; Created: In Windows' distant past (c. 1983)
+;
+; Copyright (c) 1983 - 1987  Microsoft Corporation
+;
+; This file is part of a set that makes up the Windows BitBLT function
+; at driver-level.
+;-----------------------------------------------------------------------;
+	.list
+
+;	This file needed only for compilation of BitBLT.  In the
+;	current organization, no color/monochrome-specific data
+;	have been singled out for inclusion here.
+
+;
+; [WIN1] I'm guessing that this was more populated in the Windows 1.x days...
+;
+win1_roptable:
+	not	al		;All of these opcodes are 2 bytes
+	xor	al,[di]
+	or	al,[di]
+	and	al,[di]
+	xor	al, bl
+	xor	al, dl
+	xor	al, ah
+	xor	al, dh
+	or	al, bl
+	or	al, dl
+	or	al, ah
+	or	al, dh
+	and	al, bl
+	and	al, dl
+	and	al, ah
+	and	al, dh
+
+	public	roptable
+roptable:
+win1_unktable:
+	db	0AAh, 07Ah, 0E7h, 079h
+	db	0B6h, 06Dh, 0AAh, 0AAh
+	db	0AAh, 0AAh, 025h, 047h
+	db	039h, 047h, 039h, 046h

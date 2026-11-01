@@ -1,0 +1,55 @@
+Windows 1.01 VGA driver (640x480, 8 colours)
+=============================================
+
+Files on this disk:
+    VGAHIRES.DRV   the display driver
+    VGAHIRES.GRB   grabber pointer for SETUP
+    VGAHIRES.LGO   boot logo pointer for SETUP
+    MKSETUP.COM    makes a SETUP that knows this driver
+    README.TXT     this file
+
+The driver uses standard VGA BIOS mode 12h (640x480, 16-colour planar).
+It needs only an 8086/286; no 386, no VBE and no VESA BIOS is required.
+
+
+1.  Existing slow-boot Windows 1.01 installation
+------------------------------------------------
+If C:\WINDOWS contains KERNEL.EXE, GDI.EXE, USER.EXE and DISPLAY.DRV as
+separate files, the driver is a drop-in replacement:
+
+    copy a:\VGAHIRES.DRV c:\windows\DISPLAY.DRV
+
+Back up the old DISPLAY.DRV first.  Restart Windows.
+
+
+2.  Normal installation / new installation
+------------------------------------------
+A normal Windows 1.01 setup links the display driver into WIN100.BIN, so
+replacing DISPLAY.DRV alone does not change the display driver.  Use SETUP:
+
+    - Copy all Windows 1.01 setup files into one directory, e.g. C:\WINSETUP.
+    - Copy VGAHIRES.DRV, VGAHIRES.GRB, VGAHIRES.LGO and MKSETUP.COM there.
+    - In that directory run:
+
+          MKSETUP VGAHIRES
+
+      This writes VGASETUP.EXE, whose "EGA (more than 64K)" display entry
+      installs VGAHIRES.DRV instead of EGAHIRES.DRV.  It keeps the EGA
+      font set.
+
+    - Run VGASETUP and choose "VGA 640x480 (8 colors)", or update an
+      existing installation with:
+
+          VGASETUP /Q C:\WINDOWS USA.DRV MOUSE.DRV VGAHIRES.DRV
+
+      (replace USA.DRV and MOUSE.DRV with your keyboard and mouse drivers).
+
+
+Notes
+-----
+* The driver reports the same 8 colours as the stock Windows 1.01 EGA
+  driver, so the desktop colours and fonts are the familiar ones.
+* VGA mode 12h has 80 bytes per scanline, the same as EGA 640x350; that is
+  why the cursor and font code need no changes beyond the 480-line bounds.
+* The .GRB and .LGO files are one-line pointers to the stock egalores.grb
+  and cga.lgo, exactly like the stock EGAHIRES.GRB/.LGO files.

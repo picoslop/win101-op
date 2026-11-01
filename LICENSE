@@ -1,6 +1,6 @@
 MIT License
 
-Copyright (c) 2026 picoslop
+Copyright (c) 2026 win1-op contributors
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -19,3 +19,11 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+---
+
+This license applies only to the original code and documentation in this
+release.  It does not grant any rights in Microsoft Windows, the Microsoft
+Windows 1.01 SDK, the Windows 2.0 DDK, Windows 3.0 fonts, John Elliott's
+Windows 1.x reconstruction, or any other third-party material.  See
+NOTICE.md.

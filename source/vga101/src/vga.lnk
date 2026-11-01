@@ -1,0 +1,14 @@
+	 prelude.obj +
+	 vga.obj	       vgacursr.obj	+
+         drawmod2.obj 	      	 		+
+         bitblt.obj	       strblt.obj	+
+	 scanlr.obj            pixel.obj        +
+	 output.obj 	       enum.obj         +
+         robject.obj	       colorinf.obj	+
+         control.obj           cursors.obj	+
+	 dither.obj + 
+         chkstk.obj
+vgahires.drv
+vgahires.map/map/al:512
+swinlibc/NOD
+vga.def

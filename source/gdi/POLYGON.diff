@@ -1,0 +1,1191 @@
+; POLYGON.diff — release GDI _POLYGON.asm: stock release vs ADDBORDER
+; -------------------------------------------------------------------
+; Generated with:
+;   diff -u stock/generated/GDI/_POLYGON.asm built/generated/GDI/_POLYGON.asm
+; The C source is ADDBORDER.C; addborder.asm is the compiled body that
+; was written into _POLYGON.  This diff shows the resulting assembly.
+;
+--- a/GDI/_POLYGON.asm
++++ b/GDI/_POLYGON.asm
+@@ -1218,546 +1218,97 @@
+         pop bp
+         ret 6h
+ ADDBORDER:
+-        push bp
+-        mov bp,sp
+-        sub sp,36h
+-        push di
+-        push si
+-        mov word ptr [bp-16h],0h
+-        jmp near ptr L_0DE8
+-L_0C99:
+-        mov ax,6h
+-        imul word ptr [bp-16h]
+-        add ax,[bp+16h]
+-        mov dx,[bp+18h]
+-        add ax, word ptr 4h
+-        mov [bp-32h],ax
+-        mov [bp-30h],dx
+-        les bx,[bp-32h]
+-        cmp word ptr es:[bx], word ptr 8001h
+-        jnz short L_0CBD
+-        mov word ptr es:[bx],0h
+-L_0CBD:
+-        mov ax,6h
+-        imul word ptr [bp-16h]
+-        add ax,[bp+16h]
+-        mov dx,[bp+18h]
+-        add ax, word ptr 4h
+-        mov [bp-32h],ax
+-        mov [bp-30h],dx
+-        les bx,[bp-32h]
+-        mov si,es:[bx]
+-        or si,si
+-        jnl short L_0CE3
+-        mov ax,si
+-        neg ax
+-        mov es:[bx],ax
+-L_0CE3:
+-        mov ax,6h
+-        imul word ptr [bp-16h]
+-        add ax,[bp+16h]
+-        mov dx,[bp+18h]
+-        mov [bp-32h],ax
+-        mov [bp-30h],dx
+-        les bx,[bp-32h]
+-        mov ax,es:[bx+4h]
+-        mov [bp-28h],ax
+-        mov ax,es:[bx]
+-        mov [bp-4h],ax
+-        mov word ptr [bp-6h],0h
+-        mov word ptr [bp-18h],0h
+-        jmp near ptr L_0DDC
+-L_0D12:
+-        mov ax,[bp+0Eh]
+-        cmp [bp-18h],ax
+-        jl short L_0D1D
+-        jmp near ptr L_0DE5
+-L_0D1D:
+-        mov ax,6h
+-        imul word ptr [bp-18h]
+-        add ax,[bp+10h]
+-        mov dx,[bp+12h]
+-        mov [bp-32h],ax
+-        mov [bp-30h],dx
+-        les bx,[bp-32h]
+-        mov ax,[bp-28h]
+-        cmp es:[bx+4h],ax
+-        jz short L_0D3E
+-        jmp near ptr L_0DD9
+-L_0D3E:
+-        mov word ptr [bp-6h],1h
+-        mov bx,ax
+-        shl bx,1
+-        shl bx,1
+-        les si,[bp+1Ah]
+-        mov ax,es:[bx+si]
+-        mov dx,es:[bx+si+2h]
+-        mov [bp-2Ch],ax
+-        mov [bp-2Ah],dx
+-        mov ax,0Ah
+-        les bx,[bp-2Ch]
+-        imul word ptr es:[bx+4h]
+-        add ax,bx
+-        mov dx,es
+-        mov [bp-14h],ax
+-        mov [bp-12h],dx
+-        les bx,[bp-32h]
+-        mov ax,es:[bx]
+-        cwd
+-        les bx,[bp-14h]
+-        mov es:[bx],ax
+-        mov es:[bx+2h],dx
+-        mov ax,[bp+0Ch]
+-        mov es:[bx+4h],ax
+-        mov ax,6h
+-        imul word ptr [bp-16h]
+-        add ax,[bp+16h]
+-        mov dx,[bp+18h]
+-        add ax, word ptr 4h
+-        mov [bp-36h],ax
+-        mov [bp-34h],dx
+-        les bx,[bp-36h]
+-        mov ax,es:[bx]
+-        neg ax
+-        mov es:[bx],ax
+-        or ax,ax
+-        jnz short L_0DAE
+-        mov word ptr es:[bx],8001h
+-L_0DAE:
+-        mov ax,6h
+-        imul word ptr [bp-18h]
+-        add ax,[bp+10h]
+-        mov dx,[bp+12h]
+-        add ax, word ptr 4h
+-        mov [bp-32h],ax
+-        mov [bp-30h],dx
+-        les bx,[bp-32h]
+-        mov ax,es:[bx]
+-        neg ax
+-        mov es:[bx],ax
+-        or ax,ax
+-        jnz short L_0DDC
+-        mov word ptr es:[bx],8001h
+-        jmp short L_0DDC
+-L_0DD9:
+-        inc word ptr [bp-18h]
+-L_0DDC:
+-        cmp word ptr [bp-6h],0h
+-        jnz short L_0DE5
+-        jmp near ptr L_0D12
+-L_0DE5:
+-        inc word ptr [bp-16h]
+-L_0DE8:
+-        mov ax,[bp+14h]
+-        cmp [bp-16h],ax
+-        jnl short L_0DF3
+-        jmp near ptr L_0C99
+-L_0DF3:
+-        sub ax,ax
+-        mov [bp-18h],ax
+-        mov [bp-16h],ax
+-L_0DFB:
+-        mov ax,[bp+14h]
+-        cmp [bp-16h],ax
+-        jl short L_0E25
+-        mov ax,[bp+0Eh]
+-        cmp [bp-18h],ax
+-        jl short L_0E0E
+-        jmp near ptr L_121A
+-L_0E0E:
+-        jmp short L_0E25
+-L_0E10:
+-        mov ax,6h
+-        imul word ptr [bp-16h]
+-        mov si,ax
+-        les bx,[bp+16h]
+-        cmp word ptr es:[bx+si+4h],0h
+-        jnl short L_0E2D
+-        inc word ptr [bp-16h]
+-L_0E25:
+-        mov ax,[bp+14h]
+-        cmp [bp-16h],ax
+-        jl short L_0E10
+-L_0E2D:
+-        mov ax,[bp+14h]
+-        cmp [bp-16h],ax
+-        jnz short L_0E5C
+-        mov ax,6h
+-        imul word ptr [bp-16h]
+-        mov bx,ax
+-        les si,[bp+16h]
+-        mov word ptr es:[bx+si],7FFFh
+-        jmp short L_0E5C
+-L_0E47:
+-        mov ax,6h
+-        imul word ptr [bp-18h]
+-        mov si,ax
+-        les bx,[bp+10h]
+-        cmp word ptr es:[bx+si+4h],0h
+-        jnl short L_0E64
+-        inc word ptr [bp-18h]
+-L_0E5C:
+-        mov ax,[bp+0Eh]
+-        cmp [bp-18h],ax
+-        jl short L_0E47
+-L_0E64:
+-        mov ax,[bp+0Eh]
+-        cmp [bp-18h],ax
+-        jnz short L_0E7C
+-        mov ax,6h
+-        imul word ptr [bp-18h]
+-        mov bx,ax
+-        les si,[bp+10h]
+-        mov word ptr es:[bx+si],7FFFh
+-L_0E7C:
+-        sub ax,ax
+-        mov [bp-2h],ax
+-        mov [bp-2Eh],ax
+-        mov ax,[bp+14h]
+-        cmp [bp-16h],ax
+-        jl short L_0E97
+-        mov ax,[bp+0Eh]
+-        cmp [bp-18h],ax
+-        jl short L_0E97
+-        jmp near ptr L_0DFB
+-L_0E97:
+-        mov ax,6h
+-        imul word ptr [bp-16h]
+-        add ax,[bp+16h]
+-        mov dx,[bp+18h]
+-        mov [bp-32h],ax
+-        mov [bp-30h],dx
+-        les bx,[bp-32h]
+-        mov ax,es:[bx]
+-        mov cx,ax
+-        mov ax,6h
+-        imul word ptr [bp-18h]
+-        mov bx,ax
+-        les si,[bp+10h]
+-        cmp es:[bx+si],cx
+-        jng short L_0F09
+-        les bx,[bp-32h]
+-        mov ax,es:[bx+4h]
+-        mov cx,ax
+-        mov ax,[bp-2Eh]
+-        add ax,[bp-2h]
+-        mov bx,6h
+-        imul bx
+-        mov si,ax
+-        mov [bp+si-20h],cx
+-        mov [bp-10h],cx
+-        mov ax,[bp-16h]
+-        inc word ptr [bp-16h]
+-        mov cx,bx
+-        imul cx
+-        mov bx,ax
+-        les si,[bp+16h]
+-        mov ax,es:[bx+si]
+-        mov cx,ax
+-        mov ax,[bp-2Eh]
+-        inc word ptr [bp-2Eh]
+-        add ax,[bp-2h]
+-        mov bx,6h
+-        imul bx
+-        mov si,ax
+-        mov [bp+si-24h],cx
+-        mov [bp-26h],cx
+-        jmp short L_0F70
+-L_0F09:
+-        mov ax,6h
+-        imul word ptr [bp-18h]
+-        mov si,ax
+-        les bx,[bp+10h]
+-        mov ax,es:[bx+si+4h]
+-        mov cx,ax
+-        mov ax,[bp-2Eh]
+-        add ax,[bp-2h]
+-        mov bx,6h
+-        imul bx
+-        mov si,ax
+-        mov [bp+si-20h],cx
+-        mov [bp-28h],cx
+-        mov ax,[bp-18h]
+-        inc word ptr [bp-18h]
+-        mov cx,bx
+-        imul cx
+-        mov bx,ax
+-        les si,[bp+10h]
+-        mov ax,es:[bx+si]
+-        mov cx,ax
+-        mov ax,[bp-2Eh]
+-        mov dx,[bp-2h]
+-        inc word ptr [bp-2h]
+-        add ax,dx
+-        mov bx,6h
+-        imul bx
+-        mov si,ax
+-        mov [bp+si-24h],cx
+-        mov [bp-4h],cx
+-        jmp short L_0F70
+-L_0F5B:
+-        mov ax,6h
+-        imul word ptr [bp-16h]
+-        mov si,ax
+-        les bx,[bp+16h]
+-        cmp word ptr es:[bx+si+4h],0h
+-        jnl short L_0F78
+-        inc word ptr [bp-16h]
+-L_0F70:
+-        mov ax,[bp+14h]
+-        cmp [bp-16h],ax
+-        jl short L_0F5B
+-L_0F78:
+-        mov ax,[bp+14h]
+-        cmp [bp-16h],ax
+-        jnz short L_0FA7
+-        mov ax,6h
+-        imul word ptr [bp-16h]
+-        mov bx,ax
+-        les si,[bp+16h]
+-        mov word ptr es:[bx+si],7FFFh
+-        jmp short L_0FA7
+-L_0F92:
+-        mov ax,6h
+-        imul word ptr [bp-18h]
+-        mov si,ax
+-        les bx,[bp+10h]
+-        cmp word ptr es:[bx+si+4h],0h
+-        jnl short L_0FAF
+-        inc word ptr [bp-18h]
+-L_0FA7:
+-        mov ax,[bp+0Eh]
+-        cmp [bp-18h],ax
+-        jl short L_0F92
+-L_0FAF:
+-        mov ax,[bp+0Eh]
+-        cmp [bp-18h],ax
+-        jnz short L_0FC7
+-        mov ax,6h
+-        imul word ptr [bp-18h]
+-        mov bx,ax
+-        les si,[bp+10h]
+-        mov word ptr es:[bx+si],7FFFh
+-L_0FC7:
+-        mov ax,6h
+-        imul word ptr [bp-16h]
+-        add ax,[bp+16h]
+-        mov dx,[bp+18h]
+-        mov [bp-32h],ax
+-        mov [bp-30h],dx
+-        les bx,[bp-32h]
+-        mov ax,es:[bx]
+-        mov cx,ax
+-        mov ax,6h
+-        imul word ptr [bp-18h]
+-        mov bx,ax
+-        les si,[bp+10h]
+-        cmp es:[bx+si],cx
+-        jng short L_1039
+-        les bx,[bp-32h]
+-        mov ax,es:[bx+4h]
+-        mov cx,ax
+-        mov ax,[bp-2Eh]
+-        add ax,[bp-2h]
+-        mov bx,6h
+-        imul bx
+-        mov si,ax
+-        mov [bp+si-20h],cx
+-        mov [bp-10h],cx
+-        mov ax,[bp-16h]
+-        inc word ptr [bp-16h]
+-        mov cx,bx
+-        imul cx
+-        mov bx,ax
+-        les si,[bp+16h]
+-        mov ax,es:[bx+si]
+-        mov cx,ax
+-        mov ax,[bp-2Eh]
+-        inc word ptr [bp-2Eh]
+-        add ax,[bp-2h]
+-        mov bx,6h
+-        imul bx
+-        mov si,ax
+-        mov [bp+si-24h],cx
+-        mov [bp-26h],cx
+-        jmp short L_1089
+-L_1039:
+-        mov ax,6h
+-        imul word ptr [bp-18h]
+-        mov si,ax
+-        les bx,[bp+10h]
+-        mov ax,es:[bx+si+4h]
+-        mov cx,ax
+-        mov ax,[bp-2Eh]
+-        add ax,[bp-2h]
+-        mov bx,6h
+-        imul bx
+-        mov si,ax
+-        mov [bp+si-20h],cx
+-        mov [bp-28h],cx
+-        mov ax,[bp-18h]
+-        inc word ptr [bp-18h]
+-        mov cx,bx
+-        imul cx
+-        mov bx,ax
+-        les si,[bp+10h]
+-        mov ax,es:[bx+si]
+-        mov cx,ax
+-        mov ax,[bp-2Eh]
+-        mov dx,[bp-2h]
+-        inc word ptr [bp-2h]
+-        add ax,dx
+-        mov bx,6h
+-        imul bx
+-        mov si,ax
+-        mov [bp+si-24h],cx
+-        mov [bp-4h],cx
+-L_1089:
+-        cmp word ptr [bp-2Eh],2h
+-        jnz short L_10D9
+-        mov bx,[bp-20h]
+-        shl bx,1
+-        shl bx,1
+-        les si,[bp+1Ah]
+-        mov ax,es:[bx+si]
+-        mov dx,es:[bx+si+2h]
+-        mov [bp-0Ah],ax
+-        mov [bp-8h],dx
+-        mov bx,[bp-1Ah]
+-        shl bx,1
+-        shl bx,1
+-        mov ax,es:[bx+si]
+-        mov dx,es:[bx+si+2h]
+-        mov [bp-0Eh],ax
+-        mov [bp-0Ch],dx
+-        les bx,[bp-0Ah]
+-        mov es:[bx+6h],ax
+-        mov es:[bx+8h],dx
+-        les bx,[bp-0Eh]
+-        mov ax,[bp-0Ah]
+-        mov dx,[bp-8h]
+-        mov es:[bx+6h],ax
+-        mov es:[bx+8h],dx
+-        jmp near ptr L_0DFB
+-L_10D9:
+-        cmp word ptr [bp-2h],2h
+-        jz short L_10E2
+-        jmp near ptr L_117C
+-L_10E2:
+-        mov ax,[bp+4h]
+-        imul word ptr [bp+6h]
+-        mov cx,0Ah
+-        imul cx
+-        add ax,[bp+8h]
+-        mov dx,[bp+0Ah]
+-        mov [bp-2Ch],ax
+-        mov [bp-2Ah],dx
+-        push word ptr [bp-20h]
+-        push word ptr [bp-24h]
+-        push word ptr [bp+0Ch]
+-        push dx
+-        push ax
+-        call near ptr CREATENEWLIST
+-        mov ax,0Ah
+-        imul word ptr [bp+6h]
+-        mov si,ax
+-        les bx,[bp-2Ch]
+-        mov ax,bx
+-        mov dx,es
+-        add ax,si
+-        mov es:[bx],ax
+-        mov es:[bx+2h],dx
+-        mov bx,[bp-20h]
+-        shl bx,1
+-        shl bx,1
+-        les di,[bp+1Ah]
+-        mov ax,[bp-2Ch]
+-        mov es:[bx+di],ax
+-        mov es:[bx+di+2h],dx
+-        add [bp-2Ch],si
+-        push word ptr [bp-1Ah]
+-        push word ptr [bp-1Eh]
+-        push word ptr [bp+0Ch]
+-        push dx
+-        push word ptr [bp-2Ch]
+-        call near ptr CREATENEWLIST
+-        mov ax,0Ah
+-        imul word ptr [bp+6h]
+-        mov cx,[bp-2Ch]
+-        mov bx,[bp-2Ah]
+-        sub cx,ax
+-        les di,[bp-2Ch]
+-        mov es:[di],cx
+-        mov es:[di+2h],bx
+-        mov bx,[bp-1Ah]
+-        shl bx,1
+-        shl bx,1
+-        les di,[bp+1Ah]
+-        mov ax,[bp-2Ch]
+-        mov dx,[bp-2Ah]
+-        mov es:[bx+di],ax
+-        mov es:[bx+di+2h],dx
+-        add word ptr [bp+4h],2h
+-        jmp near ptr L_0DFB
+-L_117C:
+-        mov bx,[bp-10h]
+-        shl bx,1
+-        shl bx,1
+-        les si,[bp+1Ah]
+-        mov ax,es:[bx+si]
+-        mov dx,es:[bx+si+2h]
+-        mov [bp-2Ch],ax
+-        mov [bp-2Ah],dx
+-        mov ax,0Ah
+-        les bx,[bp-2Ch]
+-        imul word ptr es:[bx+4h]
+-        add ax,bx
+-        mov dx,es
+-        mov [bp-14h],ax
+-        mov [bp-12h],dx
+-        mov ax,[bp-28h]
+-        cwd
+-        les bx,[bp-14h]
+-        mov es:[bx+6h],ax
+-        mov es:[bx+8h],dx
+-        les bx,[bp-2Ch]
+-        add word ptr es:[bx+4h],2h
+-        add word ptr [bp-14h],0Ah
+-        mov ax,[bp-4h]
+-        cwd
+-        les bx,[bp-14h]
+-        mov es:[bx],ax
+-        mov es:[bx+2h],dx
+-        mov ax,[bp+0Ch]
+-        mov es:[bx+4h],ax
+-        mov ax,es:[bx+6h]
+-        mov dx,es:[bx+8h]
+-        add word ptr [bp-14h],0Ah
+-        mov ax,[bp-4h]
+-        cwd
+-        mov bx,[bp-14h]
+-        mov es:[bx],ax
+-        mov es:[bx+2h],dx
+-        mov ax,[bp+0Ch]
+-        mov es:[bx+4h],ax
+-        mov ax,es:[bx+6h]
+-        mov dx,es:[bx+8h]
+-        mov bx,[bp-28h]
+-        shl bx,1
+-        shl bx,1
+-        mov es,[bp+1Ch]
+-        mov ax,[bp-2Ch]
+-        mov dx,[bp-2Ah]
+-        mov es:[bx+si],ax
+-        mov es:[bx+si+2h],dx
+-        jmp near ptr L_0DFB
+-L_121A:
+-        mov ax,[bp+4h]
+-        pop si
+-        pop di
+-        mov sp,bp
+-        pop bp
+-        ret 1Ah
++        jmp near ptr ADDBORDER_GROW
++        db 090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h
++        db 090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h
++        db 090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h
++        db 090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h
++        db 090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h
++        db 090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h
++        db 090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h
++        db 090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h
++        db 090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h
++        db 090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h
++        db 090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h
++        db 090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h
++        db 090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h
++        db 090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h
++        db 090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h
++        db 090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h
++        db 090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h
++        db 090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h
++        db 090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h
++        db 090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h
++        db 090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h
++        db 090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h
++        db 090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h
++        db 090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h
++        db 090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h
++        db 090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h
++        db 090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h
++        db 090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h
++        db 090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h
++        db 090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h
++        db 090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h
++        db 090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h
++        db 090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h
++        db 090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h
++        db 090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h
++        db 090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h
++        db 090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h
++        db 090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h
++        db 090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h
++        db 090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h
++        db 090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h
++        db 090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h
++        db 090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h
++        db 090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h
++        db 090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h
++        db 090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h
++        db 090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h
++        db 090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h
++        db 090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h
++        db 090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h
++        db 090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h
++        db 090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h
++        db 090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h
++        db 090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h
++        db 090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h
++        db 090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h
++        db 090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h
++        db 090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h
++        db 090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h
++        db 090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h
++        db 090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h
++        db 090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h
++        db 090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h
++        db 090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h
++        db 090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h
++        db 090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h
++        db 090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h
++        db 090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h
++        db 090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h
++        db 090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h
++        db 090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h
++        db 090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h
++        db 090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h
++        db 090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h
++        db 090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h
++        db 090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h
++        db 090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h
++        db 090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h
++        db 090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h
++        db 090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h
++        db 090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h
++        db 090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h
++        db 090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h
++        db 090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h
++        db 090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h
++        db 090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h
++        db 090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h
++        db 090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h
++        db 090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h,090h
++        db 090h,090h,090h,090h,090h,090h,090h,090h,090h
+ CREATENEWLIST:
+         push bp
+         mov bp,sp
+@@ -1959,4 +1510,543 @@
+         pop bp
+         db 0C2h
+         db 0Ch
++ADDBORDER_GROW:
++	push	bp
++	mov	bp,sp
++	sub	sp,58
++	push	si
++	mov	WORD PTR [bp-24],0
++	jmp	ADDBORDER_$F149
++ADDBORDER_$FC155:
++	inc	WORD PTR [bp-42]
++ADDBORDER_$F154:
++	mov	ax,WORD PTR [bp+14]
++	cmp	WORD PTR [bp-42],ax
++	jb	ADDBORDER_$JCC24
++	jmp	ADDBORDER_$FC150
++ADDBORDER_$JCC24:
++	cmp	WORD PTR [bp-48],0
++	je	ADDBORDER_$JCC33
++	jmp	ADDBORDER_$FC150
++ADDBORDER_$JCC33:
++	mov	ax,6
++	imul	WORD PTR [bp-42]
++	mov	si,ax
++	les	bx,DWORD PTR [bp+16]
++	mov	ax,WORD PTR [bp-44]
++	cmp	es:[bx+4][si],ax
++	jne	ADDBORDER_$FC155
++	mov	WORD PTR [bp-48],1
++	mov	bx,ax
++	shl	bx,1
++	shl	bx,1
++	les	si,DWORD PTR [bp+26]
++	mov	ax,es:[bx][si]
++	mov	dx,es:[bx+2][si]
++	mov	WORD PTR [bp-20],ax
++	mov	WORD PTR [bp-18],dx
++	les	bx,DWORD PTR [bp-20]
++	mov	ax,10
++	imul	WORD PTR es:[bx+4]
++	add	ax,bx
++	mov	dx,es
++	mov	WORD PTR [bp-4],ax
++	mov	WORD PTR [bp-2],dx
++	mov	ax,WORD PTR [bp-22]
++	cwd
++	les	bx,DWORD PTR [bp-4]
++	mov	WORD PTR es:[bx],ax
++	mov	WORD PTR es:[bx+2],dx
++	les	bx,DWORD PTR [bp-4]
++	mov	ax,WORD PTR [bp+12]
++	mov	WORD PTR es:[bx+4],ax
++	mov	ax,6
++	imul	WORD PTR [bp-24]
++	add	ax,WORD PTR [bp+22]
++	mov	dx,WORD PTR [bp+24]
++	add	ax,4
++	mov	WORD PTR [bp-54],ax
++	mov	WORD PTR [bp-52],dx
++	les	bx,DWORD PTR [bp-54]
++	mov	ax,WORD PTR es:[bx]
++	neg	ax
++	mov	WORD PTR es:[bx],ax
++	mov	ax,6
++	imul	WORD PTR [bp-24]
++	add	ax,WORD PTR [bp+22]
++	mov	dx,WORD PTR [bp+24]
++	add	ax,4
++	mov	WORD PTR [bp-58],ax
++	mov	WORD PTR [bp-56],dx
++	les	bx,DWORD PTR [bp-58]
++	cmp	WORD PTR es:[bx],0
++	jne	ADDBORDER_$I158
++	mov	WORD PTR es:[bx],-32767
++ADDBORDER_$I158:
++	mov	ax,6
++	imul	WORD PTR [bp-42]
++	add	ax,WORD PTR [bp+16]
++	mov	dx,WORD PTR [bp+18]
++	add	ax,4
++	mov	WORD PTR [bp-58],ax
++	mov	WORD PTR [bp-56],dx
++	les	bx,DWORD PTR [bp-58]
++	mov	ax,WORD PTR es:[bx]
++	neg	ax
++	mov	WORD PTR es:[bx],ax
++	mov	ax,6
++	imul	WORD PTR [bp-42]
++	add	ax,WORD PTR [bp+16]
++	mov	dx,WORD PTR [bp+18]
++	add	ax,4
++	mov	WORD PTR [bp-54],ax
++	mov	WORD PTR [bp-52],dx
++	les	bx,DWORD PTR [bp-54]
++	cmp	WORD PTR es:[bx],0
++	je	ADDBORDER_$JCC256
++	jmp	ADDBORDER_$FC155
++ADDBORDER_$JCC256:
++	mov	WORD PTR es:[bx],-32767
++	jmp	ADDBORDER_$FC155
++ADDBORDER_$FC150:
++	inc	WORD PTR [bp-24]
++ADDBORDER_$F149:
++	mov	ax,WORD PTR [bp+20]
++	cmp	WORD PTR [bp-24],ax
++	jae	ADDBORDER_$FB151
++	mov	ax,6
++	imul	WORD PTR [bp-24]
++	add	ax,WORD PTR [bp+22]
++	mov	dx,WORD PTR [bp+24]
++	add	ax,4
++	mov	WORD PTR [bp-54],ax
++	mov	WORD PTR [bp-52],dx
++	les	bx,DWORD PTR [bp-54]
++	cmp	WORD PTR es:[bx],-32767
++	jne	ADDBORDER_$I152
++	mov	WORD PTR es:[bx],0
++ADDBORDER_$I152:
++	mov	ax,6
++	imul	WORD PTR [bp-24]
++	add	ax,WORD PTR [bp+22]
++	mov	dx,WORD PTR [bp+24]
++	add	ax,4
++	mov	WORD PTR [bp-54],ax
++	mov	WORD PTR [bp-52],dx
++	les	bx,DWORD PTR [bp-54]
++	mov	si,WORD PTR es:[bx]
++	or	si,si
++	jge	ADDBORDER_$I153
++	mov	ax,si
++	neg	ax
++	mov	WORD PTR es:[bx],ax
++ADDBORDER_$I153:
++	mov	ax,6
++	imul	WORD PTR [bp-24]
++	add	ax,WORD PTR [bp+22]
++	mov	dx,WORD PTR [bp+24]
++	mov	WORD PTR [bp-54],ax
++	mov	WORD PTR [bp-52],dx
++	les	bx,DWORD PTR [bp-54]
++	mov	ax,WORD PTR es:[bx+4]
++	mov	WORD PTR [bp-44],ax
++	mov	ax,WORD PTR es:[bx]
++	mov	WORD PTR [bp-22],ax
++	mov	WORD PTR [bp-48],0
++	mov	WORD PTR [bp-42],0
++	jmp	ADDBORDER_$F154
++ADDBORDER_$FB151:
++	mov	WORD PTR [bp-10],0
++	mov	WORD PTR [bp-12],0
++ADDBORDER_$FC161:
++	mov	ax,WORD PTR [bp+20]
++	cmp	WORD PTR [bp-10],ax
++	jb	ADDBORDER_$L20000
++	mov	ax,WORD PTR [bp+14]
++	cmp	WORD PTR [bp-12],ax
++	jb	ADDBORDER_$L20000
++	mov	ax,WORD PTR [bp+4]
++	jmp	ADDBORDER_$EX131
++ADDBORDER_$FC165:
++	mov	ax,6
++	imul	WORD PTR [bp-10]
++	mov	si,ax
++	les	bx,DWORD PTR [bp+22]
++	cmp	WORD PTR es:[bx+4][si],0
++	jge	ADDBORDER_$FB166
++	inc	WORD PTR [bp-10]
++ADDBORDER_$L20000:
++	mov	ax,WORD PTR [bp+20]
++	cmp	WORD PTR [bp-10],ax
++	jb	ADDBORDER_$FC165
++ADDBORDER_$FB166:
++	mov	ax,WORD PTR [bp+20]
++	cmp	WORD PTR [bp-10],ax
++	jne	ADDBORDER_$L20001
++	mov	ax,6
++	imul	WORD PTR [bp-10]
++	mov	bx,ax
++	les	si,DWORD PTR [bp+22]
++	mov	WORD PTR es:[bx][si],32767
++	jmp	SHORT ADDBORDER_$L20001
++ADDBORDER_$FC169:
++	mov	ax,6
++	imul	WORD PTR [bp-12]
++	mov	si,ax
++	les	bx,DWORD PTR [bp+16]
++	cmp	WORD PTR es:[bx+4][si],0
++	jge	ADDBORDER_$FB170
++	inc	WORD PTR [bp-12]
++ADDBORDER_$L20001:
++	mov	ax,WORD PTR [bp+14]
++	cmp	WORD PTR [bp-12],ax
++	jb	ADDBORDER_$FC169
++ADDBORDER_$FB170:
++	mov	ax,WORD PTR [bp+14]
++	cmp	WORD PTR [bp-12],ax
++	jne	ADDBORDER_$I171
++	mov	ax,6
++	imul	WORD PTR [bp-12]
++	mov	bx,ax
++	les	si,DWORD PTR [bp+16]
++	mov	WORD PTR es:[bx][si],32767
++ADDBORDER_$I171:
++	mov	WORD PTR [bp-14],0
++	mov	WORD PTR [bp-16],0
++	mov	WORD PTR [bp-46],0
++	mov	WORD PTR [bp-50],0
++	mov	WORD PTR [bp-40],0
++	mov	ax,WORD PTR [bp+20]
++	cmp	WORD PTR [bp-10],ax
++	jb	ADDBORDER_$I172
++	mov	ax,WORD PTR [bp+14]
++	cmp	WORD PTR [bp-12],ax
++	jb	ADDBORDER_$JCC580
++	jmp	ADDBORDER_$FC161
++ADDBORDER_$JCC580:
++ADDBORDER_$I172:
++	mov	ax,6
++	imul	WORD PTR [bp-12]
++	add	ax,WORD PTR [bp+16]
++	mov	dx,WORD PTR [bp+18]
++	mov	WORD PTR [bp-58],ax
++	mov	WORD PTR [bp-56],dx
++	les	bx,DWORD PTR [bp-58]
++	mov	ax,WORD PTR es:[bx]
++	mov	cx,ax
++	mov	ax,6
++	imul	WORD PTR [bp-10]
++	mov	bx,ax
++	les	si,DWORD PTR [bp+22]
++	cmp	es:[bx][si],cx
++	jl	ADDBORDER_$I173
++	mov	ax,WORD PTR [bp-14]
++	add	ax,WORD PTR [bp-16]
++	mov	cx,6
++	imul	cx
++	add	ax,bp
++	mov	WORD PTR [bp-54],ax
++	mov	WORD PTR [bp-52],ss
++	les	bx,DWORD PTR [bp-58]
++	mov	ax,WORD PTR es:[bx+4]
++	les	bx,DWORD PTR [bp-54]
++	mov	WORD PTR es:[bx-32],ax
++	les	bx,DWORD PTR [bp-58]
++	mov	ax,WORD PTR es:[bx]
++	les	bx,DWORD PTR [bp-54]
++	mov	WORD PTR es:[bx-36],ax
++	les	bx,DWORD PTR [bp-58]
++	mov	ax,WORD PTR es:[bx+4]
++	mov	WORD PTR [bp-50],ax
++	mov	ax,WORD PTR es:[bx]
++	mov	WORD PTR [bp-40],ax
++	inc	WORD PTR [bp-12]
++	inc	WORD PTR [bp-16]
++	jmp	SHORT ADDBORDER_$L20002
++ADDBORDER_$I173:
++	mov	ax,6
++	imul	WORD PTR [bp-10]
++	add	ax,WORD PTR [bp+22]
++	mov	dx,WORD PTR [bp+24]
++	mov	WORD PTR [bp-58],ax
++	mov	WORD PTR [bp-56],dx
++	mov	ax,WORD PTR [bp-14]
++	add	ax,WORD PTR [bp-16]
++	mov	cx,6
++	imul	cx
++	add	ax,bp
++	mov	WORD PTR [bp-54],ax
++	mov	WORD PTR [bp-52],ss
++	les	bx,DWORD PTR [bp-58]
++	mov	ax,WORD PTR es:[bx+4]
++	les	bx,DWORD PTR [bp-54]
++	mov	WORD PTR es:[bx-32],ax
++	les	bx,DWORD PTR [bp-58]
++	mov	ax,WORD PTR es:[bx]
++	les	bx,DWORD PTR [bp-54]
++	mov	WORD PTR es:[bx-36],ax
++	les	bx,DWORD PTR [bp-58]
++	mov	ax,WORD PTR es:[bx+4]
++	mov	WORD PTR [bp-46],ax
++	inc	WORD PTR [bp-10]
++	inc	WORD PTR [bp-14]
++	jmp	SHORT ADDBORDER_$L20002
++ADDBORDER_$FC176:
++	mov	ax,6
++	imul	WORD PTR [bp-10]
++	mov	si,ax
++	les	bx,DWORD PTR [bp+22]
++	cmp	WORD PTR es:[bx+4][si],0
++	jge	ADDBORDER_$FB177
++	inc	WORD PTR [bp-10]
++ADDBORDER_$L20002:
++	mov	ax,WORD PTR [bp+20]
++	cmp	WORD PTR [bp-10],ax
++	jb	ADDBORDER_$FC176
++ADDBORDER_$FB177:
++	mov	ax,WORD PTR [bp+20]
++	cmp	WORD PTR [bp-10],ax
++	jne	ADDBORDER_$L20003
++	mov	ax,6
++	imul	WORD PTR [bp-10]
++	mov	bx,ax
++	les	si,DWORD PTR [bp+22]
++	mov	WORD PTR es:[bx][si],32767
++	jmp	SHORT ADDBORDER_$L20003
++ADDBORDER_$FC180:
++	mov	ax,6
++	imul	WORD PTR [bp-12]
++	mov	si,ax
++	les	bx,DWORD PTR [bp+16]
++	cmp	WORD PTR es:[bx+4][si],0
++	jge	ADDBORDER_$FB181
++	inc	WORD PTR [bp-12]
++ADDBORDER_$L20003:
++	mov	ax,WORD PTR [bp+14]
++	cmp	WORD PTR [bp-12],ax
++	jb	ADDBORDER_$FC180
++ADDBORDER_$FB181:
++	mov	ax,WORD PTR [bp+14]
++	cmp	WORD PTR [bp-12],ax
++	jne	ADDBORDER_$I182
++	mov	ax,6
++	imul	WORD PTR [bp-12]
++	mov	bx,ax
++	les	si,DWORD PTR [bp+16]
++	mov	WORD PTR es:[bx][si],32767
++ADDBORDER_$I182:
++	mov	ax,6
++	imul	WORD PTR [bp-12]
++	add	ax,WORD PTR [bp+16]
++	mov	dx,WORD PTR [bp+18]
++	mov	WORD PTR [bp-58],ax
++	mov	WORD PTR [bp-56],dx
++	les	bx,DWORD PTR [bp-58]
++	mov	ax,WORD PTR es:[bx]
++	mov	cx,ax
++	mov	ax,6
++	imul	WORD PTR [bp-10]
++	mov	bx,ax
++	les	si,DWORD PTR [bp+22]
++	cmp	es:[bx][si],cx
++	jl	ADDBORDER_$I183
++	mov	ax,WORD PTR [bp-14]
++	add	ax,WORD PTR [bp-16]
++	mov	cx,6
++	imul	cx
++	add	ax,bp
++	mov	WORD PTR [bp-54],ax
++	mov	WORD PTR [bp-52],ss
++	les	bx,DWORD PTR [bp-58]
++	mov	ax,WORD PTR es:[bx+4]
++	les	bx,DWORD PTR [bp-54]
++	mov	WORD PTR es:[bx-32],ax
++	les	bx,DWORD PTR [bp-58]
++	mov	ax,WORD PTR es:[bx]
++	les	bx,DWORD PTR [bp-54]
++	mov	WORD PTR es:[bx-36],ax
++	les	bx,DWORD PTR [bp-58]
++	mov	ax,WORD PTR es:[bx+4]
++	mov	WORD PTR [bp-50],ax
++	mov	ax,WORD PTR es:[bx]
++	mov	WORD PTR [bp-40],ax
++	inc	WORD PTR [bp-12]
++	inc	WORD PTR [bp-16]
++	jmp	SHORT ADDBORDER_$I184
++ADDBORDER_$I183:
++	mov	ax,6
++	imul	WORD PTR [bp-10]
++	add	ax,WORD PTR [bp+22]
++	mov	dx,WORD PTR [bp+24]
++	mov	WORD PTR [bp-58],ax
++	mov	WORD PTR [bp-56],dx
++	mov	ax,WORD PTR [bp-14]
++	add	ax,WORD PTR [bp-16]
++	mov	cx,6
++	imul	cx
++	add	ax,bp
++	mov	WORD PTR [bp-54],ax
++	mov	WORD PTR [bp-52],ss
++	les	bx,DWORD PTR [bp-58]
++	mov	ax,WORD PTR es:[bx+4]
++	les	bx,DWORD PTR [bp-54]
++	mov	WORD PTR es:[bx-32],ax
++	les	bx,DWORD PTR [bp-58]
++	mov	ax,WORD PTR es:[bx]
++	les	bx,DWORD PTR [bp-54]
++	mov	WORD PTR es:[bx-36],ax
++	les	bx,DWORD PTR [bp-58]
++	mov	ax,WORD PTR es:[bx+4]
++	mov	WORD PTR [bp-46],ax
++	inc	WORD PTR [bp-10]
++	inc	WORD PTR [bp-14]
++ADDBORDER_$I184:
++	cmp	WORD PTR [bp-14],2
++	jne	ADDBORDER_$I185
++	mov	bx,WORD PTR [bp-32]
++	shl	bx,1
++	shl	bx,1
++	les	si,DWORD PTR [bp+26]
++	mov	ax,es:[bx][si]
++	mov	dx,es:[bx+2][si]
++	mov	WORD PTR [bp-4],ax
++	mov	WORD PTR [bp-2],dx
++	mov	bx,WORD PTR [bp-26]
++	shl	bx,1
++	shl	bx,1
++	mov	ax,es:[bx][si]
++	mov	dx,es:[bx+2][si]
++	mov	WORD PTR [bp-8],ax
++	mov	WORD PTR [bp-6],dx
++	les	bx,DWORD PTR [bp-4]
++	mov	WORD PTR es:[bx+6],ax
++	mov	WORD PTR es:[bx+8],dx
++	les	bx,DWORD PTR [bp-8]
++	mov	ax,WORD PTR [bp-4]
++	mov	dx,WORD PTR [bp-2]
++	mov	WORD PTR es:[bx+6],ax
++	mov	WORD PTR es:[bx+8],dx
++	jmp	ADDBORDER_$FC161
++ADDBORDER_$I185:
++	cmp	WORD PTR [bp-16],2
++	je	ADDBORDER_$JCC1163
++	jmp	ADDBORDER_$I187
++ADDBORDER_$JCC1163:
++	mov	ax,WORD PTR [bp+4]
++	imul	WORD PTR [bp+6]
++	mov	cx,10
++	imul	cx
++	add	ax,WORD PTR [bp+8]
++	mov	dx,WORD PTR [bp+10]
++	mov	WORD PTR [bp-4],ax
++	mov	WORD PTR [bp-2],dx
++	push	WORD PTR [bp-32]
++	push	WORD PTR [bp-36]
++	push	WORD PTR [bp+12]
++	push	dx
++	push	ax
++	call	CREATENEWLIST
++	mov	ax,10
++	imul	WORD PTR [bp+6]
++	mov	WORD PTR [bp-38],ax
++	les	bx,DWORD PTR [bp-4]
++	add	ax,bx
++	mov	dx,es
++	mov	WORD PTR es:[bx],ax
++	mov	WORD PTR es:[bx+2],dx
++	mov	bx,WORD PTR [bp-32]
++	shl	bx,1
++	shl	bx,1
++	les	si,DWORD PTR [bp+26]
++	mov	ax,WORD PTR [bp-4]
++	mov	dx,WORD PTR [bp-2]
++	mov	es:[bx][si],ax
++	mov	es:[bx+2][si],dx
++	mov	ax,WORD PTR [bp-38]
++	add	ax,WORD PTR [bp-4]
++	mov	dx,WORD PTR [bp-2]
++	mov	WORD PTR [bp-8],ax
++	mov	WORD PTR [bp-6],dx
++	push	WORD PTR [bp-26]
++	push	WORD PTR [bp-30]
++	push	WORD PTR [bp+12]
++	push	dx
++	push	ax
++	call	CREATENEWLIST
++	les	bx,DWORD PTR [bp-8]
++	mov	ax,WORD PTR [bp-4]
++	mov	dx,WORD PTR [bp-2]
++	mov	WORD PTR es:[bx],ax
++	mov	WORD PTR es:[bx+2],dx
++	mov	bx,WORD PTR [bp-26]
++	shl	bx,1
++	shl	bx,1
++	les	si,DWORD PTR [bp+26]
++	mov	ax,WORD PTR [bp-8]
++	mov	dx,WORD PTR [bp-6]
++	mov	es:[bx][si],ax
++	mov	es:[bx+2][si],dx
++	add	WORD PTR [bp+4],2
++	jmp	ADDBORDER_$FC161
++ADDBORDER_$I187:
++	mov	bx,WORD PTR [bp-46]
++	shl	bx,1
++	shl	bx,1
++	les	si,DWORD PTR [bp+26]
++	mov	ax,es:[bx][si]
++	mov	dx,es:[bx+2][si]
++	mov	WORD PTR [bp-20],ax
++	mov	WORD PTR [bp-18],dx
++	les	bx,DWORD PTR [bp-20]
++	mov	ax,10
++	imul	WORD PTR es:[bx+4]
++	add	ax,bx
++	mov	dx,es
++	mov	WORD PTR [bp-4],ax
++	mov	WORD PTR [bp-2],dx
++	mov	ax,WORD PTR [bp-50]
++	cwd
++	les	bx,DWORD PTR [bp-4]
++	mov	WORD PTR es:[bx+6],ax
++	mov	WORD PTR es:[bx+8],dx
++	les	bx,DWORD PTR [bp-20]
++	add	WORD PTR es:[bx+4],2
++	mov	ax,WORD PTR [bp-4]
++	mov	dx,WORD PTR [bp-2]
++	add	ax,10
++	mov	WORD PTR [bp-4],ax
++	mov	ax,WORD PTR [bp-40]
++	cwd
++	les	bx,DWORD PTR [bp-4]
++	mov	WORD PTR es:[bx],ax
++	mov	WORD PTR es:[bx+2],dx
++	les	bx,DWORD PTR [bp-4]
++	mov	ax,WORD PTR [bp+12]
++	mov	WORD PTR es:[bx+4],ax
++	mov	ax,WORD PTR [bp-4]
++	mov	dx,WORD PTR [bp-2]
++	add	ax,10
++	mov	WORD PTR [bp-4],ax
++	mov	ax,WORD PTR [bp-40]
++	cwd
++	les	bx,DWORD PTR [bp-4]
++	mov	WORD PTR es:[bx],ax
++	mov	WORD PTR es:[bx+2],dx
++	les	bx,DWORD PTR [bp-4]
++	mov	ax,WORD PTR [bp+12]
++	mov	WORD PTR es:[bx+4],ax
++	mov	bx,WORD PTR [bp-50]
++	shl	bx,1
++	shl	bx,1
++	les	si,DWORD PTR [bp+26]
++	mov	ax,WORD PTR [bp-20]
++	mov	dx,WORD PTR [bp-18]
++	mov	es:[bx][si],ax
++	mov	es:[bx+2][si],dx
++	jmp	ADDBORDER_$FC161
++ADDBORDER_$EX131:
++	pop	si
++	mov	sp,bp
++	pop	bp
++	ret	26
+ end

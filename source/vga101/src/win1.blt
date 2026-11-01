@@ -1,0 +1,77 @@
+; - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - ;
+;	jmp_cx_nz   - Code template for near jump if CX-1 <> 0
+;
+;	jmp_cx_nz will skip the following near jump if CX-1 is zero.
+;	CX will be left updated by this code.
+;
+;	jmp_cx_nz is used by both the inner loop code and the outer
+;	loop code if a loop instruction cannot be used.
+; - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - ;
+
+jmp_cx_nz:
+	dec	cx			;Decrement counter
+	jz	$+5
+;	jmp	near label
+	db	I_JMP_NEAR		;JMP opcode
+
+JMP_CX_NZ_LEN	equ	$-jmp_cx_nz	;Length of procedure
+
+
+; - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - ;
+;	phase_align - Template for phase alignment code
+;
+;	The following code is the template that performs the phase
+;	alignment masking.  The source has already been aligned to
+;	the destination.
+;
+;	A copy of the aligned source is made.  The phase mask is then
+;	applied to the source and the copy.  The previously unused
+;	bits are ORed into the used bits of the current source, and
+;	the unused bits of the current source then become the unused
+;	bits for the next source.
+;
+;
+;	It assumes:
+;
+;		BP  =  phase alignment mask
+;		AL  =  current byte to mask
+;		BH  =  old unused bits
+; - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - ;
+
+phase_align:
+	mov	ah,al			;Make a copy of aligned source
+	and	ax,bp			;Masked used, unused bits
+	or	al,bh			;Mask in old unused bits
+	mov	bh,ah			;Save new unused bits
+
+PHASE_ALIGN_LEN	equ	$-phase_align	;Length of procedure
+
+	page
+; - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - ;
+;	masked_store - Template for storing first and last bytes of BLT
+;
+;	The following code is a template for storing the first and last
+;	bytes of a BLT.  The unaltered bits are saved and the altered
+;	bits set in the byte, then the byte is stored.
+;
+;
+;	It assumes:
+;
+;		AL  =  The byte to be BLTed to the destination bitmap.
+;		       All necessary logic operations have been performed
+;		       on this byte.
+;
+;		AH  =  The destination byte.
+;
+;	The AND immediate will be fixed up.
+; - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - ;
+
+masked_store:
+	and	ax,0FFFFh		;Mask altered/unaltered bits
+	or	al,ah			;Combine the bits
+	stosb				;And store the result
+
+MASKED_STORE_LEN	equ	$-masked_store	;Length of the template
+MASKED_STORE_MASK	equ	-5		;Offset to where mask goes
+
+

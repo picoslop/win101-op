@@ -1,0 +1,9 @@
+# Local build products
+/build/
+/fontkit/out/*
+!/fontkit/out/README.md
+/source/vga101/build/
+/source/vga101/drivers/
+/source/vga101/tools/
+__pycache__/
+*.pyr

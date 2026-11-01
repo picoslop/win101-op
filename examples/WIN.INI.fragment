@@ -1,0 +1,12 @@
+; WIN.INI fragment for the overlap + proportional build.
+; Merge into C:\WINDOWS\WIN.INI (do not replace the whole file blindly).
+[windows]
+spooler=no
+run=C:\WINDOWS\MSDOS.EXE
+
+; The stock Microsoft serial mouse driver does not use this section, but
+; the AT&T keyboard-mouse driver did.  Harmless here.
+[Mouse]
+use=1
+buttons=2
+exit=1

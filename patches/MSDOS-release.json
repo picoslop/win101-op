@@ -1,0 +1,58 @@
+{
+ "format": "w101patch1",
+ "label": "Windows 1.01 MS-DOS Executive + Fixedsys file list",
+ "block": 32,
+ "from": {
+  "name": "MSDOS.EXE",
+  "size": 41904,
+  "sha256": "108f4a5364f41e75846f8d8b69ad90f8e58d0a6d3dc62ded58e9988354df0e50"
+ },
+ "to": {
+  "name": "MSDOS.EXE",
+  "size": 41936,
+  "sha256": "b26f5b26f94a5629ac044faa1cdc999e11d657f290e6b4aa926280f0b31e5ad6"
+ },
+ "ops": [
+  [
+   "C",
+   0,
+   1106
+  ],
+  [
+   "L",
+   "Hjlw8R45PQXFOTDxxjkICWwBUQAkBQQAA4ABAAAAAAAfCUEAcPABgAAAAAAEgAEAAAAAAGAJFQBw8AGAAAAAAAWAEAAAAAAAdQkIADDwM4AAAAAAfQkHADDwQoAAAAAAhAkHADDwNIAAAAAAiwkIADDwOYAAAAAAkwkHADDwN4AAAAAAmgkIADDwOoAAAAAAogkGADDwNoAAAAAAqAkHADDwSoAAAAAArwkKADDwMoAAAAAAuQkKADDwNYAAAAAAwwkIADDwUIAAAAAAywkJADDwUYAAAAAA1AkJADDwUoAAAAAA3QkKADDwU4AAAAAA5wkUADDw0IcAAAAA+wkJADDwZIAAAAAABoADAAAAAAAEChMAcPABgAAAAAAXChcAcPACgAAAAAAu"
+  ],
+  [
+   "C",
+   1403,
+   7264
+  ],
+  [
+   "L",
+   "6PIu"
+  ],
+  [
+   "C",
+   8670,
+   12018
+  ],
+  [
+   "L",
+   "WFZXBlBTUVJWVwb/dgy7XgRTLv8eCx0HX15aWVvD"
+  ],
+  [
+   "C",
+   20688,
+   730
+  ],
+  [
+   "L",
+   "AA=="
+  ],
+  [
+   "C",
+   21417,
+   20487
+  ]
+ ]
+}
