@@ -143,8 +143,8 @@ the CHS values. A 32 MB image is typically `512,63,16,64`.
 ## 6. Testing
 
 Use 86Box (IBM XT 5160/AT 5170 + VGA, 640K) or DOSBox-X (`svga_s3`, 286/8086
-CPU). Expected hashes and screenshots are in `docs/VERIFY.md` and
-`docs/screenshots/`.
+CPU). Expected hashes are in `docs/VERIFY.md`; the repository screenshot is
+`screenshot.png`.
 
 ## DOSBox-X changes
 

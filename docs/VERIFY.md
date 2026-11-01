@@ -34,15 +34,11 @@ python3 docs/verify.py --build build --fonts fontkit/out \
 | `patches/GDI-release.json` | `344cb8570a04be004e1b23497753a0f958ab1eded492f59eb7854535f8c5f563` |
 | `patches/MSDOS-release.json` | `4e3821c285a6e82a69b2afebf69e44be1af0ed4362e2549b462be668931c1f09` |
 
-## Screenshots
+## Screenshot
 
-`docs/screenshots/`:
-
-* `vga-640x480-86box.png` — 640x480 desktop on an IBM AT 286 in 86Box
-  (`02c4b99a…`)
-* `proportional-fixedsys.png` — proportional menus + Fixedsys file list
-  (`b0267cbe…`)
-* `overlap-xt-vga.png` — t_ovS23 overlap desktop on an XT VGA (`004d999b…`)
+`screenshot.png` — MS-DOS Executive, Write with `PRACTICE.DOC`, and Reversi
+overlapping in Windows 1.01
+(`41fb0e31634ee4a126f2b905b53405e9c5425b325776b61209a7de99bf00ce93`).
 
 ## Boot/behaviour checks
 

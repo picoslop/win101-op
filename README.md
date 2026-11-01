@@ -1,29 +1,44 @@
+
+This is what happens when I go on a lark and decide to see how far Deepseek can get 
+with reverse engineering Windows 1.01.  Originally I wanted a decompilation, then I
+steered it to fixing the two most glaring issues... .
+
+From https://www.geekwire.com/2025/inside-the-windows-1-0-reunion-how-a-scrappy-team-shipped-the-product-that-changed-everything-eventually/ :  'When (Tandy) Trower suggested changes — overlapping windows, proportional fonts — he got the same response: “You want to ship this year?” The answer was yes.'  
+
+It turns out that if a system running Deepseek fell into a wormhole and into their office, it could have been done.
+
+This also has convinced me throughly that DS 4.1 definitely has excellent cyber capabilities without
+benchmaxxing - *nobody* would benchmax it for working with 8088 aseembly code and emulators.  While 
+it did need guidance and handholding, *all* the code here was done by Deepseek w/Deepseek harness (for
+just <$50 of API tokens)
+
+This feels like something I should have held for an April Fools Joke, but I just couldn't do it!
+
+No Windows binaries besides a VGA driver are included here.  They'll be archive-d *somewhere* soon I imagine...
+
+(AI slop follows)
+
 # win1-op 0.1.0 — Overlapping windows and a proportional System font for Windows 1.01 (with VGA 640x480)
 
-**win1-op** = Win1 + **Op**verlap + **P**roportional.
+**win1-op** = Win1 + **O**verlap + **P**roportional.
 
 A source-and-patch release for three changes to Windows 1.01:
 
 1. **VGA 640x480, 8 colours, no 386.** `VGAHIRES.DRV` is the Windows 2.0 DDK
    EGA colour engine adapted to the Windows 1.01 driver interface and VGA
-   BIOS mode 12h. It is strict 8086/286 code: no protected mode, no unreal
-   mode, no VBE bank switching.
+   BIOS mode 12h.
 2. **Overlap window manager (`t_ovS23`).** Class-0 top-level windows keep
    their class and stock input path but get free placement, overlap, raise,
    move and event-driven edge/corner drag resize. The MS-DOS Executive and
-   applications overlap instead of tiling. The system-menu **Size** item is
-   removed; use the visible border/grow box to resize.
+   applications overlap instead of tiling. (The system-menu **Size** item is
+   removed; use the visible border/grow box to resize.)
 3. **Windows 3.0 proportional System font + Fixedsys file list.** The 3.0
    `VGASYS` face is converted to FNT 1.00 and installed as the System face;
    `VGAFIX` is installed as the OEM fixed face, and the MS-DOS Executive's
    file-list painter is patched to use it. Menus and captions become
    proportional while file names stay 8-pixel fixed.
 
-![Windows 1.01 VGA 640x480 on an IBM AT 286](docs/screenshots/vga-640x480-86box.png)
-
-![Proportional System menus with a Fixedsys file list](docs/screenshots/proportional-fixedsys.png)
-
-More captures: [SCREENSHOTS.md](SCREENSHOTS.md).
+![MS-DOS Executive, Write with PRACTICE.DOC, and Reversi overlapping in Windows 1.01](screenshot.png)
 
 ## What is in this release
 

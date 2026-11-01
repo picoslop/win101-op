@@ -51,7 +51,7 @@ dosbox-x -fastlaunch -exit \
 ```sh
 python3 docs/verify.py --build build --fonts fontkit/out \
     --driver drivers/VGAHIRES.DRV --strict
-sha256sum docs/screenshots/*.png
+sha256sum screenshot.png
 ```
 
 See `docs/VERIFY.md` for the expected values.
